@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Gastos por voz</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <!-- REGISTRAR -->
+    <section id="tab-registrar" class="tab active">
+      <h1>Registrar gasto</h1>
+      <button id="mic" class="mic" aria-label="Dictar">🎤</button>
+      <p id="micEstado" class="hint">Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.</p>
+      <textarea id="texto" rows="3" placeholder="…o escribilo acá"></textarea>
+      <button id="interpretar" class="primary">Interpretar</button>
+      <div id="resultado" hidden>
+        <h2>Revisá antes de guardar</h2>
+        <div id="items"></div>
+        <button id="agregarFila" class="ghost">+ Agregar renglón</button>
+        <div class="row">
+          <button id="descartar" class="ghost">Descartar</button>
+          <button id="guardar" class="primary">Guardar</button>
+        </div>
+      </div>
+      <div class="hoy">Hoy: <strong id="totalHoy">$0</strong></div>
+    </section>
+
+    <!-- ESTADÍSTICAS -->
+    <section id="tab-stats" class="tab">
+      <h1>Estadísticas</h1>
+      <div class="cards" id="cards"></div>
+      <div class="seg" id="vista">
+        <button data-v="dia" class="on">Diario</button>
+        <button data-v="semana">Semanal</button>
+        <button data-v="mes">Mensual</button>
+        <button data-v="anio">Anual</button>
+      </div>
+      <div id="grafico" class="grafico"></div>
+      <h2 id="catTitulo">Por categoría</h2>
+      <div id="categorias"></div>
+    </section>
+
+    <!-- HISTORIAL -->
+    <section id="tab-historial" class="tab">
+      <h1>Historial</h1>
+      <div id="lista"></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section id="tab-ajustes" class="tab">
+      <h1>Ajustes</h1>
+      <h2>Inteligencia artificial</h2>
+      <p class="hint">Gratis con Google Gemini: creá una clave en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (sin tarjeta). Se guarda solo en este dispositivo. Sin clave, la app usa un intérprete local por reglas.</p>
+      <label>Clave de API de Gemini
+        <input id="apiKey" type="password" autocomplete="off" placeholder="AIza…">
+      </label>
+      <label>Modelo
+        <input id="modelo" type="text" placeholder="gemini-flash-latest">
+      </label>
+      <label>Valor del dólar (opcional, se guarda con cada gasto)
+        <input id="dolar" type="number" inputmode="decimal" placeholder="Ej: 1200">
+      </label>
+      <button id="guardarAjustes" class="primary">Guardar ajustes</button>
+
+      <h2>Datos</h2>
+      <div class="row">
+        <button id="exportar" class="ghost">Exportar copia</button>
+        <button id="importar" class="ghost">Importar copia</button>
+      </div>
+      <input id="archivo" type="file" accept="application/json" hidden>
+      <button id="borrarTodo" class="danger">Borrar todos los datos</button>
+      <p class="hint">Los gastos viven solo en este navegador. Exportá una copia de vez en cuando.</p>
+    </section>
+  </main>
+
+  <nav>
+    <button data-t="registrar" class="on">🎤<span>Registrar</span></button>
+    <button data-t="stats">📊<span>Estadísticas</span></button>
+    <button data-t="historial">📋<span>Historial</span></button>
+    <button data-t="ajustes">⚙️<span>Ajustes</span></button>
+  </nav>
+
+  <div id="toast" hidden></div>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

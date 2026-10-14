@@ -28,6 +28,29 @@ textarea, input, select { width: 100%; font: inherit; color: var(--text); backgr
 label { display: block; margin-top: 12px; color: var(--mute); font-size: 14px; }
 label input { margin-top: 4px; }
 
+.totalbar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; background: var(--bg); border-bottom: 1px solid var(--line); padding: 10px 0; margin-bottom: 8px; }
+.totalbar small { color: var(--mute); display: block; }
+.totalbar b { font-size: 32px; color: var(--ok); }
+.mic.chico { width: 64px; height: 64px; font-size: 28px; }
+.row input { flex: 2; }
+.row .primary { margin-top: 0; width: auto; flex: 1; }
+.linea { background: var(--card); border-radius: 10px; padding: 10px; margin-top: 8px; position: relative; }
+.linea .sup { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.linea .sup input { flex: 1; padding: 6px 8px; }
+.linea .sub { font-weight: 700; white-space: nowrap; }
+.linea .sub.falta { color: #fbbf24; }
+.linea .inf { display: grid; grid-template-columns: 70px 70px 1fr 70px; gap: 6px; margin-top: 6px; align-items: center; font-size: 14px; color: var(--mute); }
+.linea .inf input, .linea .inf select { padding: 6px; font-size: 14px; }
+.linea .quitar { background: transparent; padding: 4px 8px; color: var(--mute); }
+.dif { text-align: center; margin: 8px 0; font-weight: 600; }
+.dif.mal { color: var(--danger); }
+.dif.bien { color: var(--ok); }
+details { margin-top: 20px; background: var(--card); border-radius: 12px; padding: 10px 12px; }
+summary { cursor: pointer; font-weight: 600; }
+.pform { background: var(--bg); }
+.pfila { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.pfila span { flex: 1; }
+.pfila input { width: 90px; padding: 6px; }
 .item { display: grid; grid-template-columns: 1fr 100px; gap: 6px; background: var(--card); padding: 10px; border-radius: 10px; margin-top: 8px; position: relative; }
 .item .full { grid-column: 1 / -1; }
 .item .quitar { position: absolute; top: 4px; right: 4px; background: transparent; padding: 4px 8px; color: var(--mute); }

@@ -211,6 +211,39 @@ function parseSegmento(s) {
   return { tipo: 'compra', producto: nombre, cantidad, unidad, precio: inline, guardarPrecio: !!inline, etiqueta: etiq };
 }
 
+// ---------- Edición de la lista de precios por voz ----------
+const VERBOS_BORRAR = /^(?:borra|borrar|borrame|elimina|eliminar|eliminame|saca|sacar|sacame|quita|quitar|quitame|suprimi|suprime|suprimir)\b\s*/;
+const VERBOS_EDITAR = /^(?:cambia|cambiar|cambiame|actualiza|actualizar|modifica|modificar|corregi|corregir|pone|poner|poneme|ahora|subi|subir|baja|bajar|agrega|agregar|anota|anotame)\b\s*/;
+const BORRAR_TODO = /^(?:todo|todos|toda|todas)\b|\b(?:toda|todo|completa|entera)\b.*\blista\b|^(?:la )?lista(?: de precios)?(?: completa| entera)?$|^los precios$/;
+
+// Devuelve acciones: { accion: 'precio', producto, precio, unidad|null, etiqueta } | { accion: 'borrar', producto } | { accion: 'borrar_todo' }
+// unidad null = que la app decida (la que ya tenía el producto, o la más probable)
+function interpretarPreciosLocal(texto) {
+  const t = numerosADigitos(sinTildes(texto.toLowerCase()).replace(/\$/g, ' '));
+  const acciones = [];
+  for (let seg of t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b)\s*/)) {
+    seg = seg.trim();
+    if (!seg) continue;
+    if (VERBOS_BORRAR.test(seg)) {
+      const resto = seg.replace(VERBOS_BORRAR, '').trim();
+      if (BORRAR_TODO.test(resto)) { acciones.push({ accion: 'borrar_todo' }); continue; }
+      const nombre = limpiarNombre(resto.replace(/\b(?:de la lista|de los precios|de precios|la lista|el precio de|los precios de|precios?)\b/g, ' '));
+      const env = sacarEnvase(nombre);
+      if (env.nombre) acciones.push({ accion: 'borrar', producto: env.nombre });
+      continue;
+    }
+    seg = seg.replace(VERBOS_EDITAR, '').replace(/^(?:el |los )?precios? (?:del? (?:la |el |los |las )?)?/, '');
+    const r = parseSegmento(seg);
+    if (!r) continue;
+    if (r.tipo === 'precio') acciones.push({ accion: 'precio', producto: r.producto, precio: r.precio, unidad: r.unidad, etiqueta: r.etiqueta || '' });
+    else if (r.precio > 0) {
+      const explicita = r.unidad !== 'u' || r.etiqueta;
+      acciones.push({ accion: 'precio', producto: r.producto, precio: r.precio, unidad: explicita ? (r.etiqueta ? 'u' : (r.unidad === 'g' ? 'kg' : r.unidad === 'ml' ? 'l' : r.unidad)) : null, etiqueta: r.etiqueta || '' });
+    }
+  }
+  return acciones.map(a => a.producto ? { ...a, producto: a.producto.charAt(0).toUpperCase() + a.producto.slice(1) } : a);
+}
+
 function interpretarCompraLocal(texto) {
   let t = sinTildes(texto.toLowerCase()).replace(/\$/g, ' ');
   t = t.replace(/\b(?:tres cuartos|3\/4)(?: de)? kilos?\b/g, '0.75 kilo')
@@ -223,4 +256,4 @@ function interpretarCompraLocal(texto) {
     .map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
 }
 
-if (typeof module !== 'undefined') module.exports = { interpretarCompraLocal, interpretarLocal, adivinarCategoria, CATEGORIAS, fechaISO };
+if (typeof module !== 'undefined') module.exports = { interpretarPreciosLocal, interpretarCompraLocal, interpretarLocal, adivinarCategoria, CATEGORIAS, fechaISO };

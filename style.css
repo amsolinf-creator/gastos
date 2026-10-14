@@ -28,7 +28,12 @@ textarea, input, select { width: 100%; font: inherit; color: var(--text); backgr
 label { display: block; margin-top: 12px; color: var(--mute); font-size: 14px; }
 label input { margin-top: 4px; }
 
-.totalbar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; background: var(--bg); border-bottom: 1px solid var(--line); padding: 10px 0; margin-bottom: 8px; }
+#barraTotal { display: none; position: fixed; left: 0; right: 0; bottom: var(--nav-h, 62px); z-index: 10; justify-content: space-between; align-items: center; background: var(--ok); color: #052e16; padding: 10px 16px; font-weight: 600; box-shadow: 0 -2px 10px rgba(0,0,0,.35); }
+#barraTotal b { font-size: 24px; }
+#barraTotal small { font-weight: 400; }
+body[data-tab="compra"] #barraTotal { display: flex; }
+body[data-tab="compra"] main { padding-bottom: 150px; }
+.totalbar { display: flex; justify-content: space-between; align-items: center; background: var(--bg); border-bottom: 1px solid var(--line); padding: 10px 0; margin-bottom: 8px; }
 .totalbar small { color: var(--mute); display: block; }
 .totalbar b { font-size: 32px; color: var(--ok); }
 .mic.chico { width: 64px; height: 64px; font-size: 28px; }

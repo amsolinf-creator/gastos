@@ -1,5 +1,5 @@
 // Subir el número de versión en cada publicación: es lo que dispara el aviso "Actualizar".
-const CACHE = 'gastos-v3';
+const CACHE = 'gastos-v4';
 const FILES = ['./', './index.html', './style.css', './parser.js', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -9,6 +9,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data === 'VERSION' && e.ports[0]) e.ports[0].postMessage(CACHE);
 });
 
 self.addEventListener('activate', e => {

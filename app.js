@@ -27,28 +27,32 @@ document.querySelectorAll('nav button').forEach(b => b.addEventListener('click',
   if (b.dataset.t === 'stats') renderStats();
   if (b.dataset.t === 'historial') renderHistorial();
   if (b.dataset.t === 'registrar') renderHoy();
+  if (b.dataset.t === 'compra') renderCompra();
 }));
 
 // ---------- Dictado por voz ----------
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let reconocimiento = null, escuchando = false;
 
-$('mic').addEventListener('click', () => {
-  if (!SR) { toast('Tu navegador no soporta dictado. Escribí el texto o usá Chrome.'); return; }
-  if (escuchando) { reconocimiento.stop(); return; }
-  reconocimiento = new SR();
-  reconocimiento.lang = 'es-AR';
-  reconocimiento.interimResults = true;
-  reconocimiento.continuous = false;
-  reconocimiento.onstart = () => { escuchando = true; $('mic').classList.add('on'); $('micEstado').textContent = 'Escuchando…'; };
-  reconocimiento.onresult = e => { $('texto').value = Array.from(e.results).map(r => r[0].transcript).join(' '); };
-  reconocimiento.onerror = e => { $('micEstado').textContent = e.error === 'not-allowed' ? 'Permiso de micrófono denegado.' : 'Error de dictado: ' + e.error; };
-  reconocimiento.onend = () => {
-    escuchando = false; $('mic').classList.remove('on');
-    if ($('texto').value.trim()) { $('micEstado').textContent = 'Listo. Interpretando…'; interpretar(); }
-  };
-  reconocimiento.start();
-});
+function configurarMic(boton, entrada, estado, alTerminar) {
+  let rec = null, escuchando = false;
+  boton.addEventListener('click', () => {
+    if (!SR) { toast('Tu navegador no soporta dictado. Escribí el texto o usá Chrome.'); return; }
+    if (escuchando) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = 'es-AR';
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.onstart = () => { escuchando = true; boton.classList.add('on'); estado.textContent = 'Escuchando…'; };
+    rec.onresult = e => { entrada.value = Array.from(e.results).map(r => r[0].transcript).join(' '); };
+    rec.onerror = e => { estado.textContent = e.error === 'not-allowed' ? 'Permiso de micrófono denegado.' : 'Error de dictado: ' + e.error; };
+    rec.onend = () => {
+      escuchando = false; boton.classList.remove('on');
+      if (entrada.value.trim()) { estado.textContent = 'Listo. Interpretando…'; alTerminar(); }
+    };
+    rec.start();
+  });
+}
+configurarMic($('mic'), $('texto'), $('micEstado'), () => interpretar());
 
 // ---------- Interpretación (Gemini o reglas locales) ----------
 async function interpretarConIA(texto) {
@@ -251,7 +255,7 @@ $('guardarAjustes').addEventListener('click', () => {
 });
 
 $('exportar').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(gastos, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ gastos, precios }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `gastos-${hoyISO()}.json`; a.click();
   URL.revokeObjectURL(a.href);
@@ -260,8 +264,12 @@ $('importar').addEventListener('click', () => $('archivo').click());
 $('archivo').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
-    const arr = JSON.parse(await f.text());
+    const data = JSON.parse(await f.text());
+    const arr = Array.isArray(data) ? data : data.gastos;
     if (!Array.isArray(arr)) throw new Error();
+    if (Array.isArray(data.precios)) {
+      data.precios.filter(p => p && p.nombre && p.precio > 0).forEach(p => setPrecio(p.nombre, p.precio, p.unidad));
+    }
     const ids = new Set(gastos.map(g => g.id));
     const nuevos = arr.filter(g => g && g.id && g.producto && g.monto > 0 && /^\d{4}-\d{2}-\d{2}$/.test(g.fecha) && !ids.has(g.id));
     gastos.push(...nuevos); persistir(); renderHoy();
@@ -274,7 +282,250 @@ $('borrarTodo').addEventListener('click', () => {
   gastos = []; persistir(); renderHoy(); toast('Datos borrados');
 });
 
+// ---------- Compra: lista de precios y carrito ----------
+const LS_PRECIOS = 'gastos.precios.v1';
+const LS_CARRITO = 'gastos.carrito.v1';
+let precios = cargar(LS_PRECIOS, []);   // [{nombre, precio, unidad: 'kg'|'l'|'u'}]
+let carrito = cargar(LS_CARRITO, []);   // [{id, producto, cantidad, unidad, precio, up}]
+const guardarPrecios = () => localStorage.setItem(LS_PRECIOS, JSON.stringify(precios));
+const guardarCarrito = () => localStorage.setItem(LS_CARRITO, JSON.stringify(carrito));
+
+const UNIDADES_CANT = ['kg', 'g', 'l', 'ml', 'u'];
+const baseDe = u => (u === 'g' ? 'kg' : u === 'ml' ? 'l' : u);
+const factor = u => (u === 'g' || u === 'ml' ? 1 / 1000 : 1);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Claves de comparación: "Tomates" y "tomate" son el mismo producto
+const claves = s => {
+  const k = sinTildes(s.toLowerCase()).trim().replace(/\s+/g, ' ').replace(/s$/, '');
+  return [k, k.replace(/e$/, '')];
+};
+const palabras = s => sinTildes(s.toLowerCase()).split(/\s+/).filter(Boolean).map(w => claves(w)[1]);
+
+function buscarPrecio(nombre) {
+  const ck = claves(nombre);
+  const exacto = precios.find(p => claves(p.nombre).some(k => ck.includes(k)));
+  if (exacto) return exacto;
+  const pw = palabras(nombre);
+  let mejor = null;
+  for (const p of precios) {
+    const ew = palabras(p.nombre);
+    if (ew.every(w => pw.includes(w)) || pw.every(w => ew.includes(w))) {
+      if (!mejor || ew.length > palabras(mejor.nombre).length) mejor = p;
+    }
+  }
+  return mejor;
+}
+
+function setPrecio(nombre, precio, unidad) {
+  const ex = precios.find(p => claves(p.nombre).some(k => claves(nombre).includes(k)));
+  if (ex) { ex.precio = precio; ex.unidad = unidad; }
+  else precios.push({ nombre: cap(nombre.trim()), precio, unidad });
+  precios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  guardarPrecios();
+}
+
+// Subtotal de una línea; null si falta precio o las unidades no coinciden
+function subtotal(it) {
+  if (!(it.precio > 0)) return null;
+  if (baseDe(it.unidad) !== it.up) return null;
+  return it.cantidad * factor(it.unidad) * it.precio;
+}
+const totalCarrito = () => carrito.reduce((s, it) => s + (subtotal(it) || 0), 0);
+
+async function interpretarCompraConIA(texto) {
+  const conocidos = precios.map(p => p.nombre).join(', ') || '(ninguno)';
+  const prompt = `Interpretá este dictado de una compra (verdulería/supermercado, español rioplatense). Puede mezclar dos tipos de frases:
+- tipo "precio": declara cuánto cuesta algo ("tomate a 2500 el kilo"). Campos: producto, precio (número), unidad (kg, l o u; "la docena" => dividí el precio por 12 y usá u).
+- tipo "compra": lo que se pone en el carrito ("dos kilos de tomate", "medio kilo", "300 gramos", "tres bananas"). Campos: producto, cantidad (número), unidad (kg, g, l, ml o u), precio (precio por kg/l/unidad SOLO si lo dice en la misma frase; si no, 0), monto (importe total fijo SOLO si dice un total sin cantidad, como "pan 800"; si no, 0).
+"lucas" = miles ("dos lucas" = 2000). "medio kilo" = 0.5 kg. "kilo y medio" = 1.5 kg.
+Nombres de productos ya conocidos (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
+Para campos que no aplican usá 0. Dictado: """${texto}"""`;
+  const schema = {
+    type: 'ARRAY',
+    items: {
+      type: 'OBJECT',
+      properties: {
+        tipo: { type: 'STRING', enum: ['precio', 'compra'] },
+        producto: { type: 'STRING' },
+        cantidad: { type: 'NUMBER' },
+        unidad: { type: 'STRING', enum: UNIDADES_CANT },
+        precio: { type: 'NUMBER' },
+        monto: { type: 'NUMBER' },
+      },
+      required: ['tipo', 'producto', 'cantidad', 'unidad', 'precio', 'monto'],
+    },
+  };
+  const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+    }),
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  return JSON.parse(data.candidates[0].content.parts[0].text).map(x => {
+    if (x.tipo === 'precio') return { tipo: 'precio', producto: x.producto, precio: x.precio, unidad: baseDe(x.unidad) };
+    if (x.monto > 0 && !(x.precio > 0)) return { tipo: 'compra', producto: x.producto, cantidad: 1, unidad: 'u', precio: x.monto, guardarPrecio: false };
+    return { tipo: 'compra', producto: x.producto, cantidad: x.cantidad || 1, unidad: x.unidad, precio: x.precio, guardarPrecio: x.precio > 0 };
+  });
+}
+
+async function agregarCompra() {
+  const texto = $('cTexto').value.trim();
+  if (!texto) { toast('Dictá o escribí algo primero'); return; }
+  $('cAgregar').disabled = true;
+  let items = [];
+  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
+  try {
+    if (ajustes.apiKey) {
+      try { items = await interpretarCompraConIA(texto); fuente = '✨ IA (Gemini)'; }
+      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarCompraLocal(texto); }
+    } else items = interpretarCompraLocal(texto);
+  } finally { $('cAgregar').disabled = false; }
+
+  let nPrecios = 0, nItems = 0, sinPrecio = 0;
+  for (const it of items) {
+    if (!it.producto || !it.producto.trim()) continue;
+    if (it.tipo === 'precio') {
+      if (it.precio > 0) { setPrecio(it.producto, it.precio, it.unidad); nPrecios++; }
+      continue;
+    }
+    let precio = it.precio > 0 ? it.precio : 0;
+    let up = baseDe(it.unidad);
+    if (precio) {
+      if (it.guardarPrecio) setPrecio(it.producto, precio, up);
+    } else {
+      const ex = buscarPrecio(it.producto);
+      if (ex) { precio = ex.precio; up = ex.unidad; }
+    }
+    const nuevo = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: cap(it.producto.trim()), cantidad: it.cantidad || 1, unidad: it.unidad, precio, up };
+    carrito.push(nuevo);
+    nItems++;
+    if (subtotal(nuevo) === null) sinPrecio++;
+  }
+  guardarCarrito();
+  $('cTexto').value = '';
+  const partes = [];
+  if (nPrecios) partes.push(`${nPrecios} precio(s) guardado(s)`);
+  if (nItems) partes.push(`${nItems} al carrito`);
+  if (sinPrecio) partes.push(`⚠ ${sinPrecio} sin precio`);
+  $('cEstado').textContent = `${partes.join(' · ') || 'No entendí nada'} — interpretado con ${fuente}`;
+  renderCompra();
+}
+
+function renderCompra() {
+  $('cItems').innerHTML = carrito.map(it => {
+    const sub = subtotal(it);
+    const falta = sub === null;
+    return `<div class="linea" data-id="${it.id}">
+      <div class="sup">
+        <input data-k="producto" value="${esc(it.producto)}" aria-label="Producto">
+        <span class="sub${falta ? ' falta' : ''}">${falta ? (it.precio > 0 ? '⚠ unidad' : '⚠ precio') : peso(sub)}</span>
+        <button class="quitar" data-q="${it.id}" aria-label="Quitar">✕</button>
+      </div>
+      <div class="inf">
+        <input data-k="cantidad" type="number" inputmode="decimal" step="any" value="${it.cantidad}" aria-label="Cantidad">
+        <select data-k="unidad">${UNIDADES_CANT.map(u => `<option${u === it.unidad ? ' selected' : ''}>${u}</option>`).join('')}</select>
+        <span style="text-align:right">× $</span>
+        <input data-k="precio" type="number" inputmode="decimal" step="any" value="${it.precio || ''}" placeholder="precio" aria-label="Precio">
+      </div>
+      <div class="inf" style="grid-template-columns:1fr 110px">
+        <span>precio por</span>
+        <select data-k="up">${[['kg', 'kilo'], ['l', 'litro'], ['u', 'unidad']].map(([v, n]) => `<option value="${v}"${v === it.up ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      </div>
+    </div>`;
+  }).join('') || '<p class="hint" style="text-align:center">El carrito está vacío.</p>';
+  $('cTotal').textContent = peso(totalCarrito());
+  $('cCant').textContent = carrito.length ? `${carrito.length} producto(s)` : '';
+  renderDif();
+  renderPrecios();
+}
+
+function renderDif() {
+  const caja = Number($('cCaja').value);
+  const el = $('cDif');
+  if (!caja || !carrito.length) { el.textContent = ''; el.className = 'dif'; return; }
+  const d = caja - totalCarrito();
+  if (Math.abs(d) < 1) { el.textContent = '✔ Coincide con tu cuenta'; el.className = 'dif bien'; }
+  else if (d > 0) { el.textContent = `La caja cobra ${peso(d)} de MÁS que tu cuenta`; el.className = 'dif mal'; }
+  else { el.textContent = `La caja cobra ${peso(-d)} de menos que tu cuenta`; el.className = 'dif bien'; }
+}
+
+// Editar una línea: solo se actualizan los números, sin redibujar (no pierde el foco)
+$('cItems').addEventListener('change', e => {
+  const fila = e.target.closest('.linea'); if (!fila) return;
+  const it = carrito.find(x => x.id === fila.dataset.id); if (!it) return;
+  const k = e.target.dataset.k;
+  const teniaPrecio = it.precio > 0;
+  if (k === 'cantidad' || k === 'precio') it[k] = Number(e.target.value) || 0;
+  else it[k] = e.target.value;
+  if (k === 'unidad' && !teniaPrecio) it.up = baseDe(it.unidad);
+  if (k === 'precio' && !teniaPrecio && it.precio > 0 && !buscarPrecio(it.producto)) {
+    setPrecio(it.producto, it.precio, it.up);
+    toast(`Precio de ${it.producto} guardado en la lista`);
+  }
+  guardarCarrito(); renderCompra();
+});
+$('cItems').addEventListener('click', e => {
+  const q = e.target.dataset.q; if (!q) return;
+  carrito = carrito.filter(x => x.id !== q); guardarCarrito(); renderCompra();
+});
+$('cCaja').addEventListener('input', renderDif);
+$('cAgregar').addEventListener('click', agregarCompra);
+$('cTexto').addEventListener('keydown', e => { if (e.key === 'Enter') agregarCompra(); });
+configurarMic($('cMic'), $('cTexto'), $('cEstado'), () => agregarCompra());
+
+$('cVaciar').addEventListener('click', () => {
+  if (carrito.length && !confirm('¿Vaciar el carrito?')) return;
+  carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
+});
+$('cGuardar').addEventListener('click', () => {
+  const validos = carrito.filter(it => subtotal(it) > 0);
+  if (!validos.length) { toast('No hay productos con precio para guardar'); return; }
+  const dolar = Number(ajustes.dolar) || null;
+  const fecha = hoyISO();
+  validos.forEach(it => gastos.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    producto: it.producto, monto: Math.round(subtotal(it) * 100) / 100, categoria: adivinarCategoria(it.producto), fecha, dolar,
+  }));
+  persistir();
+  carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
+  toast(`${validos.length} gasto(s) guardado(s) en el historial`);
+});
+
+// Lista de precios
+const nombreUnidad = { kg: 'kilo', l: 'litro', u: 'unidad' };
+function renderPrecios() {
+  $('pCant').textContent = precios.length;
+  $('pLista').innerHTML = precios.map((p, i) => `
+    <div class="pfila"><span>${esc(p.nombre)}</span>
+      <input type="number" inputmode="decimal" step="any" value="${p.precio}" data-pi="${i}" aria-label="Precio de ${esc(p.nombre)}">
+      <small>/ ${nombreUnidad[p.unidad] || p.unidad}</small>
+      <button class="quitar" data-pdel="${i}" aria-label="Borrar">✕</button></div>`).join('')
+    || '<p class="hint">Todavía no cargaste precios. Decí “tomate a 2500 el kilo” o agregalos acá.</p>';
+}
+$('pLista').addEventListener('change', e => {
+  const i = e.target.dataset.pi; if (i === undefined) return;
+  const v = Number(e.target.value);
+  if (v > 0) { precios[+i].precio = v; guardarPrecios(); toast('Precio actualizado (aplica a lo que cargues desde ahora)'); }
+});
+$('pLista').addEventListener('click', e => {
+  const i = e.target.dataset.pdel; if (i === undefined) return;
+  precios.splice(+i, 1); guardarPrecios(); renderPrecios();
+});
+$('pAgregar').addEventListener('click', () => {
+  const nombre = $('pNom').value.trim(), precio = Number($('pPrecio').value);
+  if (!nombre || !(precio > 0)) { toast('Completá producto y precio'); return; }
+  setPrecio(nombre, precio, $('pUni').value);
+  $('pNom').value = ''; $('pPrecio').value = ''; renderPrecios();
+});
+
 // ---------- Inicio ----------
 cargarAjustes();
 renderHoy();
+renderCompra();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

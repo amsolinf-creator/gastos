@@ -71,19 +71,46 @@ async function fetchGemini(url, opts) {
   return r;
 }
 
+// "HTTP 429 – mensaje de la API" para saber por qué falló
+async function detalleError(r) {
+  let msg = '';
+  try { const j = await r.json(); msg = (j.error && (j.error.message || j.error.status)) || ''; } catch {}
+  return 'HTTP ' + r.status + (msg ? ' – ' + String(msg).replace(/\s+/g, ' ').slice(0, 140) : '');
+}
+
+const MODELOS_RESPALDO_GEMINI = ['gemini-flash-lite-latest'];  // cuota gratuita aparte de la del modelo principal
+const modeloUsado = { gemini: '', groq: '' };
+
 async function llamarGemini(prompt, schema) {
-  const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
-  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
-    }),
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const data = await r.json();
-  return JSON.parse(data.candidates[0].content.parts[0].text);
+  const modelos = [...new Set([ajustes.modelo || 'gemini-flash-latest', ...MODELOS_RESPALDO_GEMINI])];
+  let ultimo = '';
+  for (const m of modelos) {
+    const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+      }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      modeloUsado.gemini = m;
+      return JSON.parse(data.candidates[0].content.parts[0].text);
+    }
+    ultimo = `${m}: ${await detalleError(r)}`;
+    if (r.status !== 429 && r.status !== 404) break;   // cuota agotada o modelo inexistente: probar el siguiente
+  }
+  throw new Error(ultimo);
+}
+
+// Si el modelo de Groq no existe en la cuenta, se consulta la lista real y se elige uno de chat
+const PREFERIDOS_GROQ = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
+async function elegirModeloGroq() {
+  const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + ajustes.groqKey } });
+  if (!r.ok) throw new Error(await detalleError(r));
+  const ids = (await r.json()).data.map(m => m.id).filter(id => !/whisper|tts|orpheus|guard|safeguard|embed|vision/i.test(id));
+  return PREFERIDOS_GROQ.find(id => ids.includes(id)) || ids.find(id => /llama|gpt-oss|qwen|mixtral|gemma/i.test(id)) || null;
 }
 
 // Groq no acepta "schema": se le describen los campos en el pedido y se pide un objeto {"items":[...]}
@@ -92,12 +119,12 @@ function describirSchema(schema) {
     `"${k}" (${v.type === 'NUMBER' ? 'número' : 'texto'}${v.enum ? ', uno de: ' + v.enum.join(' | ') : ''})`).join(', ');
 }
 
-async function llamarGroq(prompt, schema) {
+async function llamarGroq(prompt, schema, modelo = ajustes.groqModelo || 'llama-3.3-70b-versatile', reintento = true) {
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ajustes.groqKey },
     body: JSON.stringify({
-      model: ajustes.groqModelo || 'llama-3.3-70b-versatile',
+      model: modelo,
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
@@ -106,7 +133,21 @@ async function llamarGroq(prompt, schema) {
       ],
     }),
   });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) {
+    const detalle = await detalleError(r);
+    if ((r.status === 404 || r.status === 400) && reintento) {   // modelo inexistente o sin acceso: usar uno disponible
+      let nuevo = null;
+      try { nuevo = await elegirModeloGroq(); } catch (e) { throw new Error(`${modelo}: ${detalle}; no pude listar modelos (${e.message})`); }
+      if (nuevo && nuevo !== modelo) {
+        const datos = await llamarGroq(prompt, schema, nuevo, false);
+        ajustes.groqModelo = nuevo; localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
+        if ($('groqModelo')) $('groqModelo').value = nuevo;
+        return datos;
+      }
+    }
+    throw new Error(`${modelo}: ${detalle}`);
+  }
+  modeloUsado.groq = modelo;
   const data = await r.json();
   const obj = JSON.parse(data.choices[0].message.content);
   const arr = Array.isArray(obj) ? obj : obj.items;
@@ -322,6 +363,24 @@ $('guardarAjustes').addEventListener('click', () => {
   };
   localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
   toast('Ajustes guardados');
+});
+
+// Prueba cada IA por separado y muestra el motivo exacto si falla
+$('probarIA').addEventListener('click', async () => {
+  $('guardarAjustes').click();
+  const schema = { type: 'ARRAY', items: { type: 'OBJECT', properties: { ok: { type: 'STRING' } } } };
+  const prompt = 'Devolvé un único elemento con ok = "si".';
+  const motores = [['Gemini', ajustes.apiKey, llamarGemini, 'gemini'], ['Groq', ajustes.groqKey, llamarGroq, 'groq']].filter(m => m[1]);
+  if (!motores.length) { $('probarEstado').textContent = 'Cargá al menos una clave de API.'; return; }
+  $('probarIA').disabled = true;
+  $('probarEstado').textContent = 'Probando…';
+  const lineas = [];
+  for (const [nombre, , fn, k] of motores) {
+    try { await fn(prompt, schema); lineas.push(`${nombre}: ✅ funciona (modelo ${modeloUsado[k]})`); }
+    catch (e) { lineas.push(`${nombre}: ❌ ${e.message}`); }
+  }
+  $('probarEstado').textContent = lineas.join('\n');
+  $('probarIA').disabled = false;
 });
 
 $('exportar').addEventListener('click', () => {

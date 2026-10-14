@@ -329,10 +329,12 @@ function buscarPrecio(nombre) {
   return mejor;
 }
 
-function setPrecio(nombre, precio, unidad) {
+// etiqueta: presentación que se muestra en la lista ("atado", "bolsa"); solo aplica a precios por unidad
+function setPrecio(nombre, precio, unidad, etiqueta = '') {
+  const et = unidad === 'u' ? etiqueta : '';
   const ex = precios.find(p => claves(p.nombre).some(k => claves(nombre).includes(k)));
-  if (ex) { ex.precio = precio; ex.unidad = unidad; }
-  else precios.push({ nombre: cap(nombre.trim()), precio, unidad });
+  if (ex) { ex.precio = precio; ex.unidad = unidad; ex.etiqueta = et; }
+  else precios.push({ nombre: cap(nombre.trim()), precio, unidad, etiqueta: et });
   precios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   guardarPrecios();
 }
@@ -349,7 +351,8 @@ async function interpretarCompraConIA(texto) {
   const conocidos = precios.map(p => p.nombre).join(', ') || '(ninguno)';
   const prompt = `Interpretá este dictado de una compra (verdulería/supermercado, español rioplatense). Puede mezclar dos tipos de frases:
 - tipo "precio": declara cuánto cuesta algo ("tomate a 2500 el kilo"). Campos: producto, precio (número), unidad (kg, l o u; "la docena" => dividí el precio por 12 y usá u).
-- tipo "compra": lo que se pone en el carrito ("dos kilos de tomate", "medio kilo", "300 gramos", "tres bananas"). Campos: producto, cantidad (número), unidad (kg, g, l, ml o u), precio (precio por kg/l/unidad SOLO si lo dice en la misma frase; si no, 0), monto (importe total fijo SOLO si dice un total sin cantidad, como "pan 800"; si no, 0).
+- tipo "compra": lo que se pone en el carrito ("dos kilos de tomate", "medio kilo", "300 gramos", "tres bananas"). Campos: producto, cantidad (número), unidad (kg, g, l, ml o u), precio (precio por kg/l/unidad SOLO si lo dice en la misma frase; si no, 0), monto (importe fijo SOLO si dice un precio sin cantidad ni "el kilo", como "pan 800" o "rúcula atado dos mil pesos"; si no, 0).
+Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" ("atado") y dejalo fuera de "producto" ("Rúcula"). Si no hay envase, etiqueta es "".
 "lucas" = miles ("dos lucas" = 2000). "medio kilo" = 0.5 kg. "kilo y medio" = 1.5 kg.
 Nombres de productos ya conocidos (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
 Para campos que no aplican usá 0. Dictado: """${texto}"""`;
@@ -364,8 +367,9 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
         unidad: { type: 'STRING', enum: UNIDADES_CANT },
         precio: { type: 'NUMBER' },
         monto: { type: 'NUMBER' },
+        etiqueta: { type: 'STRING' },
       },
-      required: ['tipo', 'producto', 'cantidad', 'unidad', 'precio', 'monto'],
+      required: ['tipo', 'producto', 'cantidad', 'unidad', 'precio', 'monto', 'etiqueta'],
     },
   };
   const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
@@ -380,9 +384,13 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const data = await r.json();
   return JSON.parse(data.candidates[0].content.parts[0].text).map(x => {
-    if (x.tipo === 'precio') return { tipo: 'precio', producto: x.producto, precio: x.precio, unidad: baseDe(x.unidad) };
-    if (x.monto > 0 && !(x.precio > 0)) return { tipo: 'compra', producto: x.producto, cantidad: 1, unidad: 'u', precio: x.monto, guardarPrecio: false };
-    return { tipo: 'compra', producto: x.producto, cantidad: x.cantidad || 1, unidad: x.unidad, precio: x.precio, guardarPrecio: x.precio > 0 };
+    const etiqueta = (x.etiqueta || '').trim().toLowerCase();
+    if (x.tipo === 'precio') return { tipo: 'precio', producto: x.producto, precio: x.precio, unidad: baseDe(x.unidad), etiqueta };
+    if (x.monto > 0 && !(x.precio > 0)) {
+      // precio sin cantidad: se guarda por la unidad más probable (atado => unidad, tomate => kilo)
+      return { tipo: 'compra', producto: x.producto, cantidad: 1, unidad: etiqueta ? 'u' : sugerirUnidad(x.producto), precio: x.monto, guardarPrecio: true, etiqueta };
+    }
+    return { tipo: 'compra', producto: x.producto, cantidad: x.cantidad || 1, unidad: x.unidad, precio: x.precio, guardarPrecio: x.precio > 0, etiqueta };
   });
 }
 
@@ -403,13 +411,13 @@ async function agregarCompra() {
   for (const it of items) {
     if (!it.producto || !it.producto.trim()) continue;
     if (it.tipo === 'precio') {
-      if (it.precio > 0) { setPrecio(it.producto, it.precio, it.unidad); nPrecios++; }
+      if (it.precio > 0) { setPrecio(it.producto, it.precio, it.unidad, it.etiqueta); nPrecios++; }
       continue;
     }
     let precio = it.precio > 0 ? it.precio : 0;
     let up = baseDe(it.unidad);
     if (precio) {
-      if (it.guardarPrecio) setPrecio(it.producto, precio, up);
+      if (it.guardarPrecio) { setPrecio(it.producto, precio, up, it.etiqueta); nPrecios++; }
     } else {
       const ex = buscarPrecio(it.producto);
       if (ex) { precio = ex.precio; up = ex.unidad; }
@@ -518,7 +526,7 @@ function renderPrecios() {
   $('pLista').innerHTML = precios.map((p, i) => `
     <div class="pfila"><span>${esc(p.nombre)}</span>
       <input type="number" inputmode="decimal" step="any" value="${p.precio}" data-pi="${i}" aria-label="Precio de ${esc(p.nombre)}">
-      <small>/ ${nombreUnidad[p.unidad] || p.unidad}</small>
+      <small>/ ${esc(p.etiqueta || nombreUnidad[p.unidad] || p.unidad)}</small>
       <button class="quitar" data-pdel="${i}" aria-label="Borrar">✕</button></div>`).join('')
     || '<p class="hint">Todavía no cargaste precios. Decí “tomate a 2500 el kilo” o agregalos acá.</p>';
 }
@@ -531,11 +539,19 @@ $('pLista').addEventListener('click', e => {
   const i = e.target.dataset.pdel; if (i === undefined) return;
   precios.splice(+i, 1); guardarPrecios(); renderPrecios();
 });
+// La unidad se sugiere sola según el producto (rúcula => unidad, leche => litro, tomate => kilo); si la cambiás a mano, se respeta
+let unidadManual = false;
+$('pUni').addEventListener('change', () => (unidadManual = true));
+$('pNom').addEventListener('input', () => {
+  if (!unidadManual && $('pNom').value.trim()) $('pUni').value = sugerirUnidad($('pNom').value);
+});
 $('pAgregar').addEventListener('click', () => {
   const nombre = $('pNom').value.trim(), precio = Number($('pPrecio').value);
   if (!nombre || !(precio > 0)) { toast('Completá producto y precio'); return; }
-  setPrecio(nombre, precio, $('pUni').value);
-  $('pNom').value = ''; $('pPrecio').value = ''; renderPrecios();
+  const env = sacarEnvase(sinTildes(nombre.toLowerCase()));   // "Rúcula atado" => nombre "rucula" + etiqueta "atado"
+  const limpio = env.etiqueta ? cap(sacarEnvase(nombre.toLowerCase()).nombre) : nombre;
+  setPrecio(limpio, precio, env.etiqueta ? 'u' : $('pUni').value, env.etiqueta);
+  $('pNom').value = ''; $('pPrecio').value = ''; unidadManual = false; renderPrecios();
 });
 
 // ---------- Inicio ----------

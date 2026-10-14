@@ -588,6 +588,100 @@ $('pLista').addEventListener('click', e => {
   const i = e.target.dataset.pdel; if (i === undefined) return;
   precios.splice(+i, 1); guardarPrecios(); renderPrecios();
 });
+// ----- Editar la lista por voz o texto: cambiar precios, borrar productos, borrar todo -----
+const buscarExacto = nombre => precios.find(p => claves(p.nombre).some(k => claves(nombre).includes(k)));
+
+async function interpretarPreciosConIA(texto) {
+  const conocidos = precios.map(p => `${p.nombre} (${p.precio}/${p.etiqueta || p.unidad})`).join(', ') || '(ninguno)';
+  const prompt = `Interpretá este dictado para editar una lista de precios de verdulería/supermercado (español rioplatense). Acciones posibles:
+- "precio": fijar o cambiar el precio de un producto. Campos: producto, precio (número), unidad (kg, l o u).
+- "borrar": quitar un producto de la lista. Campo: producto.
+- "borrar_todo": vaciar toda la lista ("borrar toda la lista", "eliminar todo").
+Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" y dejalo fuera de "producto".
+"lucas" = miles ("dos lucas" = 2000). Si no dice la unidad de un precio, usá la que ya tiene el producto en la lista, o kg si es nuevo y se vende por peso.
+Productos actuales (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
+Para campos que no aplican usá 0 o "". Dictado: """${texto}"""`;
+  const schema = {
+    type: 'ARRAY',
+    items: {
+      type: 'OBJECT',
+      properties: {
+        accion: { type: 'STRING', enum: ['precio', 'borrar', 'borrar_todo'] },
+        producto: { type: 'STRING' },
+        precio: { type: 'NUMBER' },
+        unidad: { type: 'STRING', enum: ['kg', 'l', 'u'] },
+        etiqueta: { type: 'STRING' },
+      },
+      required: ['accion', 'producto', 'precio', 'unidad', 'etiqueta'],
+    },
+  };
+  const datos = await llamarIA(prompt, schema);
+  return datos.map(x => ({
+    accion: ['precio', 'borrar', 'borrar_todo'].includes(x.accion) ? x.accion : 'precio',
+    producto: String(x.producto || '').trim(),
+    precio: Number(x.precio) || 0,
+    unidad: ['kg', 'l', 'u'].includes(x.unidad) ? x.unidad : null,
+    etiqueta: String(x.etiqueta || '').trim().toLowerCase(),
+  }));
+}
+
+function aplicarAccionesPrecios(acciones) {
+  const r = { nuevos: [], cambiados: [], borrados: [], noEncontrados: [], todo: false };
+  for (const a of acciones) {
+    if (a.accion === 'borrar_todo') {
+      if (!precios.length) continue;
+      if (confirm(`¿Eliminar TODA la lista de precios (${precios.length} productos)?`)) { precios = []; r.todo = true; }
+      continue;
+    }
+    if (!a.producto) continue;
+    if (a.accion === 'borrar') {
+      const ex = buscarExacto(a.producto) || buscarPrecio(a.producto);
+      if (!ex) { r.noEncontrados.push(a.producto); continue; }
+      precios = precios.filter(p => p !== ex);
+      r.borrados.push(ex.nombre);
+    } else if (a.precio > 0) {
+      const ex = buscarExacto(a.producto);
+      const unidad = a.unidad || (ex && ex.unidad) || (a.etiqueta ? 'u' : sugerirUnidad(a.producto));
+      setPrecio(a.producto, a.precio, unidad, a.etiqueta || (ex && unidad === 'u' ? ex.etiqueta : ''));
+      (ex ? r.cambiados : r.nuevos).push(cap(a.producto));
+    }
+  }
+  guardarPrecios(); renderPrecios();
+  return r;
+}
+
+async function editarPrecios() {
+  const texto = $('pTexto').value.trim();
+  if (!texto) { toast('Dictá o escribí algo primero'); return; }
+  $('pAplicar').disabled = true;
+  let acciones = [];
+  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
+  try {
+    if (hayIA()) {
+      try { acciones = await interpretarPreciosConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
+      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; acciones = interpretarPreciosLocal(texto); }
+    } else acciones = interpretarPreciosLocal(texto);
+  } finally { $('pAplicar').disabled = false; }
+  const r = aplicarAccionesPrecios(acciones);
+  const partes = [];
+  if (r.nuevos.length) partes.push('agregado: ' + r.nuevos.join(', '));
+  if (r.cambiados.length) partes.push('actualizado: ' + r.cambiados.join(', '));
+  if (r.borrados.length) partes.push('borrado: ' + r.borrados.join(', '));
+  if (r.todo) partes.push('lista eliminada');
+  if (r.noEncontrados.length) partes.push('no está en la lista: ' + r.noEncontrados.join(', '));
+  $('pEstado').textContent = `${partes.join(' · ') || 'No entendí nada'} — interpretado con ${fuente}`;
+  if (partes.length) $('pTexto').value = '';
+}
+$('pAplicar').addEventListener('click', editarPrecios);
+$('pTexto').addEventListener('keydown', e => { if (e.key === 'Enter') editarPrecios(); });
+configurarMic($('pMic'), $('pTexto'), $('pEstado'), () => editarPrecios());
+
+$('pBorrarTodo').addEventListener('click', () => {
+  if (!precios.length) { toast('La lista ya está vacía'); return; }
+  if (!confirm(`¿Eliminar TODA la lista de precios (${precios.length} productos)? No se puede deshacer.`)) return;
+  precios = []; guardarPrecios(); renderPrecios(); toast('Lista de precios eliminada');
+});
+
 // La unidad se sugiere sola según el producto (rúcula => unidad, leche => litro, tomate => kilo); si la cambiás a mano, se respeta
 let unidadManual = false;
 $('pUni').addEventListener('change', () => (unidadManual = true));

@@ -9,7 +9,7 @@
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-tab="compra">
   <main>
     <!-- COMPRA (carrito con precios por kilo) -->
     <section id="tab-compra" class="tab active">
@@ -111,6 +111,11 @@
       <p class="hint">Los gastos viven solo en este navegador. Exportá una copia de vez en cuando.</p>
     </section>
   </main>
+
+  <div id="barraTotal">
+    <span>🛒 Total estimado <small id="cCantFija"></small></span>
+    <b id="cTotalFijo">$0</b>
+  </div>
 
   <nav>
     <button data-t="compra" class="on">🛒<span>Compra</span></button>

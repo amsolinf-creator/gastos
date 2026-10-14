@@ -412,6 +412,7 @@ async function interpretarCompraConIA(texto) {
 - tipo "compra": lo que se pone en el carrito ("dos kilos de tomate", "medio kilo", "300 gramos", "tres bananas"). Campos: producto, cantidad (número), unidad (kg, g, l, ml o u), precio (precio por kg/l/unidad SOLO si lo dice en la misma frase; si no, 0), monto (importe fijo SOLO si dice un precio sin cantidad ni "el kilo", como "pan 800" o "rúcula atado dos mil pesos"; si no, 0).
 Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" ("atado") y dejalo fuera de "producto" ("Rúcula"). Si no hay envase, etiqueta es "".
 "lucas" = miles ("dos lucas" = 2000). "medio kilo" = 0.5 kg. "kilo y medio" = 1.5 kg.
+Si después de "kilo(s)" se dice un número menor a 1000 sin otra unidad, son gramos: "un kilo doscientos cincuenta" = 1.25 kg, "dos kilos cien" = 2.1 kg, "un kilo 250" = 1.25 kg, "tres kilos y 500" = 3.5 kg. Usá la unidad kg con decimales.
 Nombres de productos ya conocidos (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
 Para campos que no aplican usá 0. Dictado: """${texto}"""`;
   const schema = {

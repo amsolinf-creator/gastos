@@ -1,5 +1,5 @@
 // Subir el número de versión en cada publicación: es lo que dispara el aviso "Actualizar".
-const CACHE = 'gastos-v6';
+const CACHE = 'gastos-v7';
 const FILES = ['./', './index.html', './style.css', './parser.js', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {

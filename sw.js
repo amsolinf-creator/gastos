@@ -1,9 +1,14 @@
-const CACHE = 'gastos-v2';
+// Subir el número de versión en cada publicación: es lo que dispara el aviso "Actualizar".
+const CACHE = 'gastos-v3';
 const FILES = ['./', './index.html', './style.css', './parser.js', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
-  self.skipWaiting();
+  // Sin skipWaiting: la versión nueva queda "en espera" hasta que el usuario toque Actualizar.
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))));
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -15,9 +20,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return; // la API de IA va directo a la red
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return; // la API de IA va directo a la red
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(r => {
         const copy = r.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));

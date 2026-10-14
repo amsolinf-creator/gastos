@@ -97,15 +97,17 @@ async function interpretar() {
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
   $('interpretar').disabled = true;
   let items = [];
+  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
   try {
     if (ajustes.apiKey) {
-      try { items = await interpretarConIA(texto); }
-      catch (e) { toast('IA no disponible (' + e.message + '). Uso reglas locales.'); items = interpretarLocal(texto); }
+      try { items = await interpretarConIA(texto); fuente = '✨ IA (Gemini)'; }
+      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarLocal(texto); }
     } else {
       items = interpretarLocal(texto);
     }
   } finally { $('interpretar').disabled = false; }
-  if (!items.length) { toast('No encontré montos. Revisá el texto.'); $('micEstado').textContent = ''; return; }
+  $('micEstado').textContent = 'Interpretado con ' + fuente;
+  if (!items.length) { toast('No encontré montos. Revisá el texto.'); return; }
   pendientes = items;
   renderPendientes();
 }

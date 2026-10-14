@@ -92,5 +92,7 @@ nav button.on span { color: var(--accent); }
 .aviso { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--accent); color: #082f49; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); font-weight: 600; }
 .aviso[hidden] { display: none; }
 .aviso button { background: #082f49; color: #fff; padding: 8px 14px; }
-.totalbar { top: 0; }
+.aviso.ok { background: var(--ok); }
+.aviso.ok.error { background: #fbbf24; }
+.aviso.ok button { padding: 4px 10px; }
 #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 20px; font-size: 14px; max-width: 90%; }

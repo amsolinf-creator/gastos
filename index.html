@@ -35,6 +35,14 @@
 
       <details id="precios">
         <summary>Lista de precios (<span id="pCant">0</span>)</summary>
+        <h3 class="sub-titulo">Editar por voz</h3>
+        <button id="pMic" class="mic chico" aria-label="Dictar">🎤</button>
+        <p id="pEstado" class="hint">Decí, por ejemplo: “tomate a 3000 el kilo”, “cambiá la banana a 2000”, “borrá la rúcula” o “borrar toda la lista”.</p>
+        <div class="row">
+          <input id="pTexto" type="text" placeholder="o escribilo: borrá la rúcula">
+          <button id="pAplicar" class="primary">Aplicar</button>
+        </div>
+        <h3 class="sub-titulo">Agregar a mano</h3>
         <div class="item pform">
           <input id="pNom" type="text" placeholder="Producto (ej: Tomate)" class="full">
           <input id="pPrecio" type="number" inputmode="decimal" placeholder="Precio">
@@ -42,6 +50,7 @@
           <button id="pAgregar" class="ghost full">Guardar precio</button>
         </div>
         <div id="pLista"></div>
+        <button id="pBorrarTodo" class="danger">Eliminar toda la lista de precios</button>
       </details>
     </section>
 

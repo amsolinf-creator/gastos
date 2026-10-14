@@ -55,6 +55,17 @@ function configurarMic(boton, entrada, estado, alTerminar) {
 configurarMic($('mic'), $('texto'), $('micEstado'), () => interpretar());
 
 // ---------- Interpretación (Gemini o reglas locales) ----------
+// 503 = servidores de Google saturados (temporal): se reintenta hasta 2 veces antes de caer a las reglas locales
+async function fetchGemini(url, opts) {
+  let r;
+  for (let intento = 0; intento < 3; intento++) {
+    r = await fetch(url, opts);
+    if (r.status !== 503) break;
+    await new Promise(ok => setTimeout(ok, 1200 * (intento + 1)));
+  }
+  return r;
+}
+
 async function interpretarConIA(texto) {
   const hoy = hoyISO();
   const prompt = `Extraé los gastos de este dictado en español rioplatense (Argentina). Hoy es ${hoy}.
@@ -73,7 +84,7 @@ Dictado: """${texto}"""`;
     },
   };
   const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
     body: JSON.stringify({
@@ -357,7 +368,7 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
     },
   };
   const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
     body: JSON.stringify({
@@ -424,7 +435,7 @@ function renderCompra() {
     return `<div class="linea" data-id="${it.id}">
       <div class="sup">
         <input data-k="producto" value="${esc(it.producto)}" aria-label="Producto">
-        <span class="sub${falta ? ' falta' : ''}">${falta ? (it.precio > 0 ? '⚠ unidad' : '⚠ precio') : peso(sub)}</span>
+        <span class="sub${falta ? ' falta' : ''}">${falta ? (it.precio > 0 ? '⚠ kg/u?' : '⚠ precio') : peso(sub)}</span>
         <button class="quitar" data-q="${it.id}" aria-label="Quitar">✕</button>
       </div>
       <div class="inf">
@@ -528,4 +539,30 @@ $('pAgregar').addEventListener('click', () => {
 cargarAjustes();
 renderHoy();
 renderCompra();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// ---------- Aviso de actualización ----------
+function mostrarAvisoActualizacion(sw) {
+  $('actualizar').hidden = false;
+  $('btnActualizar').onclick = () => { $('btnActualizar').disabled = true; sw.postMessage('SKIP_WAITING'); };
+}
+
+if ('serviceWorker' in navigator) {
+  const habiaControlador = !!navigator.serviceWorker.controller;
+  let recargando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!habiaControlador || recargando) return; // primera instalación: no hace falta recargar
+    recargando = true; location.reload();
+  });
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    if (reg.waiting && navigator.serviceWorker.controller) mostrarAvisoActualizacion(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const nuevo = reg.installing;
+      nuevo.addEventListener('statechange', () => {
+        if (nuevo.state === 'installed' && navigator.serviceWorker.controller) mostrarAvisoActualizacion(nuevo);
+      });
+    });
+    // Buscar versiones nuevas al volver a la app y cada 30 minutos
+    const buscar = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) buscar(); });
+    setInterval(buscar, 30 * 60 * 1000);
+  }).catch(() => {});
+}

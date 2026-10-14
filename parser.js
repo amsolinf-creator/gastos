@@ -251,6 +251,9 @@ function interpretarCompraLocal(texto) {
        .replace(/\b(?:un )?kilo y medio\b/g, '1.5 kilos')
        .replace(/\b(?:un )?kilo y cuarto\b/g, '1.25 kilos');
   t = numerosADigitos(t);
+  // "un kilo doscientos cincuenta" => 1.25 kilos; "dos kilos cien" => 2.1 kilos (lo que sigue al kilo, si es menor a 1000, son gramos)
+  t = t.replace(/(\d+(?:\.\d+)?) (kilos?|kgs?|litros?|lts?) (?:y )?(\d{1,3})(?![\d.])(?: (?:gramos?|grs?|gr|g)\b)?(?! ?(?:kilos?|kgs?|litros?|lts?|unidad|unidades|docenas?|el|la|por|x|cada)\b)/g,
+    (m, n, u, g) => (Math.round((parseFloat(n) + parseInt(g, 10) / 1000) * 1000) / 1000) + ' ' + u);
   t = t.replace(/(\d+(?:\.\d+)?) (kilos?|kgs?|litros?) y 0\.5\b/g, (_, n, u) => (parseFloat(n) + 0.5) + ' ' + u);
   return t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b|\bademas\b)\s*/).map(parseSegmento).filter(Boolean)
     .map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));

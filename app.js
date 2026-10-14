@@ -4,7 +4,8 @@ const LS_AJUSTES = 'gastos.ajustes.v1';
 
 const cargar = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
 let gastos = cargar(LS_GASTOS, []);
-let ajustes = cargar(LS_AJUSTES, { apiKey: '', modelo: 'gemini-flash-latest', dolar: '' });
+let ajustes = cargar(LS_AJUSTES, {});
+ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', dolar: '', ...ajustes };
 const persistir = () => localStorage.setItem(LS_GASTOS, JSON.stringify(gastos));
 
 const $ = id => document.getElementById(id);
@@ -55,8 +56,11 @@ function configurarMic(boton, entrada, estado, alTerminar) {
 }
 configurarMic($('mic'), $('texto'), $('micEstado'), () => interpretar());
 
-// ---------- Interpretación (Gemini o reglas locales) ----------
-// 503 = servidores de Google saturados (temporal): se reintenta hasta 2 veces antes de caer a las reglas locales
+// ---------- Interpretación (Gemini y/o Groq, con reglas locales como último recurso) ----------
+let fuenteIA = '';
+const hayIA = () => !!(ajustes.apiKey || ajustes.groqKey);
+
+// 503 = servidores de Google saturados (temporal): se reintenta hasta 2 veces antes de pasar a la otra IA
 async function fetchGemini(url, opts) {
   let r;
   for (let intento = 0; intento < 3; intento++) {
@@ -65,6 +69,66 @@ async function fetchGemini(url, opts) {
     await new Promise(ok => setTimeout(ok, 1200 * (intento + 1)));
   }
   return r;
+}
+
+async function llamarGemini(prompt, schema) {
+  const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
+  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+    }),
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  return JSON.parse(data.candidates[0].content.parts[0].text);
+}
+
+// Groq no acepta "schema": se le describen los campos en el pedido y se pide un objeto {"items":[...]}
+function describirSchema(schema) {
+  return Object.entries(schema.items.properties).map(([k, v]) =>
+    `"${k}" (${v.type === 'NUMBER' ? 'número' : 'texto'}${v.enum ? ', uno de: ' + v.enum.join(' | ') : ''})`).join(', ');
+}
+
+async function llamarGroq(prompt, schema) {
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ajustes.groqKey },
+    body: JSON.stringify({
+      model: ajustes.groqModelo || 'llama-3.3-70b-versatile',
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'Respondés únicamente con JSON válido.' },
+        { role: 'user', content: `${prompt}\n\nDevolvé un objeto JSON con la forma {"items":[...]}; cada elemento tiene exactamente estos campos: ${describirSchema(schema)}. Si no hay nada que extraer, devolvé {"items":[]}.` },
+      ],
+    }),
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  const obj = JSON.parse(data.choices[0].message.content);
+  const arr = Array.isArray(obj) ? obj : obj.items;
+  if (!Array.isArray(arr)) throw new Error('respuesta inválida');
+  return arr;
+}
+
+// Prueba la IA principal y, si falla, la otra (si tiene clave). Devuelve la lista de items.
+async function llamarIA(prompt, schema) {
+  const motores = { gemini: ['Gemini', ajustes.apiKey && llamarGemini], groq: ['Groq', ajustes.groqKey && llamarGroq] };
+  const orden = ajustes.principal === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
+  const errores = [];
+  for (const m of orden) {
+    const [nombre, fn] = motores[m];
+    if (!fn) continue;
+    try {
+      const datos = await fn(prompt, schema);
+      fuenteIA = nombre + (errores.length ? ' · respaldo' : '');
+      return datos;
+    } catch (e) { errores.push(`${nombre}: ${e.message}`); }
+  }
+  throw new Error(errores.join('; '));
 }
 
 async function interpretarConIA(texto) {
@@ -84,19 +148,8 @@ Dictado: """${texto}"""`;
       required: ['producto', 'monto', 'categoria', 'fecha'],
     },
   };
-  const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
-  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
-    }),
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const data = await r.json();
-  const items = JSON.parse(data.candidates[0].content.parts[0].text);
-  return items
+  const datos = await llamarIA(prompt, schema);
+  return datos
     .filter(x => x && Number(x.monto) > 0)
     .map(x => ({
       producto: String(x.producto || 'Gasto'),
@@ -115,8 +168,8 @@ async function interpretar() {
   let items = [];
   let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
   try {
-    if (ajustes.apiKey) {
-      try { items = await interpretarConIA(texto); fuente = '✨ IA (Gemini)'; }
+    if (hayIA()) {
+      try { items = await interpretarConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
       catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarLocal(texto); }
     } else {
       items = interpretarLocal(texto);
@@ -259,9 +312,14 @@ $('lista').addEventListener('click', e => {
 // ---------- Ajustes ----------
 function cargarAjustes() {
   $('apiKey').value = ajustes.apiKey; $('modelo').value = ajustes.modelo; $('dolar').value = ajustes.dolar;
+  $('groqKey').value = ajustes.groqKey; $('groqModelo').value = ajustes.groqModelo; $('principal').value = ajustes.principal;
 }
 $('guardarAjustes').addEventListener('click', () => {
-  ajustes = { apiKey: $('apiKey').value.trim(), modelo: $('modelo').value.trim() || 'gemini-flash-latest', dolar: $('dolar').value };
+  ajustes = {
+    apiKey: $('apiKey').value.trim(), modelo: $('modelo').value.trim() || 'gemini-flash-latest',
+    groqKey: $('groqKey').value.trim(), groqModelo: $('groqModelo').value.trim() || 'llama-3.3-70b-versatile',
+    principal: $('principal').value, dolar: $('dolar').value,
+  };
   localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
   toast('Ajustes guardados');
 });
@@ -372,19 +430,10 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
       required: ['tipo', 'producto', 'cantidad', 'unidad', 'precio', 'monto', 'etiqueta'],
     },
   };
-  const modelo = encodeURIComponent(ajustes.modelo || 'gemini-flash-latest');
-  const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
-    }),
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const data = await r.json();
-  return JSON.parse(data.candidates[0].content.parts[0].text).map(x => {
-    const etiqueta = (x.etiqueta || '').trim().toLowerCase();
+  const datos = await llamarIA(prompt, schema);
+  return datos.map(x => {
+    const etiqueta = String(x.etiqueta || '').trim().toLowerCase();
+    x = { ...x, producto: String(x.producto || ''), cantidad: Number(x.cantidad) || 0, precio: Number(x.precio) || 0, monto: Number(x.monto) || 0, unidad: UNIDADES_CANT.includes(x.unidad) ? x.unidad : 'u' };
     if (x.tipo === 'precio') return { tipo: 'precio', producto: x.producto, precio: x.precio, unidad: baseDe(x.unidad), etiqueta };
     if (x.monto > 0 && !(x.precio > 0)) {
       // precio sin cantidad: se guarda por la unidad más probable (atado => unidad, tomate => kilo)
@@ -401,8 +450,8 @@ async function agregarCompra() {
   let items = [];
   let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
   try {
-    if (ajustes.apiKey) {
-      try { items = await interpretarCompraConIA(texto); fuente = '✨ IA (Gemini)'; }
+    if (hayIA()) {
+      try { items = await interpretarCompraConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
       catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarCompraLocal(texto); }
     } else items = interpretarCompraLocal(texto);
   } finally { $('cAgregar').disabled = false; }

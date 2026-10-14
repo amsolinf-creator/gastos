@@ -11,9 +11,43 @@
 </head>
 <body>
   <main>
+    <!-- COMPRA (carrito con precios por kilo) -->
+    <section id="tab-compra" class="tab active">
+      <div class="totalbar">
+        <div><small>Total estimado</small><b id="cTotal">$0</b></div>
+        <span id="cCant" class="hint"></span>
+      </div>
+      <button id="cMic" class="mic chico" aria-label="Dictar">🎤</button>
+      <p id="cEstado" class="hint">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”, “tres bananas”).</p>
+      <div class="row">
+        <input id="cTexto" type="text" placeholder="o escribilo: 2 kilos de tomate">
+        <button id="cAgregar" class="primary">Agregar</button>
+      </div>
+      <div id="cItems"></div>
+      <label>Total que marca la caja (opcional)
+        <input id="cCaja" type="number" inputmode="decimal" placeholder="Ej: 15400">
+      </label>
+      <div id="cDif" class="dif"></div>
+      <div class="row">
+        <button id="cVaciar" class="ghost">Vaciar</button>
+        <button id="cGuardar" class="primary">Guardar como gasto</button>
+      </div>
+
+      <details id="precios">
+        <summary>Lista de precios (<span id="pCant">0</span>)</summary>
+        <div class="item pform">
+          <input id="pNom" type="text" placeholder="Producto (ej: Tomate)" class="full">
+          <input id="pPrecio" type="number" inputmode="decimal" placeholder="Precio">
+          <select id="pUni"><option value="kg">por kilo</option><option value="l">por litro</option><option value="u">por unidad</option></select>
+          <button id="pAgregar" class="ghost full">Guardar precio</button>
+        </div>
+        <div id="pLista"></div>
+      </details>
+    </section>
+
     <!-- REGISTRAR -->
-    <section id="tab-registrar" class="tab active">
-      <h1>Registrar gasto</h1>
+    <section id="tab-registrar" class="tab">
+      <h1>Gasto directo</h1>
       <button id="mic" class="mic" aria-label="Dictar">🎤</button>
       <p id="micEstado" class="hint">Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.</p>
       <textarea id="texto" rows="3" placeholder="…o escribilo acá"></textarea>
@@ -79,7 +113,8 @@
   </main>
 
   <nav>
-    <button data-t="registrar" class="on">🎤<span>Registrar</span></button>
+    <button data-t="compra" class="on">🛒<span>Compra</span></button>
+    <button data-t="registrar">🎤<span>Gasto</span></button>
     <button data-t="stats">📊<span>Estadísticas</span></button>
     <button data-t="historial">📋<span>Historial</span></button>
     <button data-t="ajustes">⚙️<span>Ajustes</span></button>

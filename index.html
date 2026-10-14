@@ -89,12 +89,21 @@
     <section id="tab-ajustes" class="tab">
       <h1>Ajustes</h1>
       <h2>Inteligencia artificial</h2>
-      <p class="hint">Gratis con Google Gemini: creá una clave en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (sin tarjeta). Se guarda solo en este dispositivo. Sin clave, la app usa un intérprete local por reglas.</p>
-      <label>Clave de API de Gemini
+      <p class="hint">Podés usar una o las dos IAs gratuitas. Si la principal falla, la app prueba la otra, y si ninguna responde usa un intérprete local por reglas. Las claves se guardan solo en este dispositivo.</p>
+      <label>IA principal
+        <select id="principal"><option value="gemini">Gemini (Google)</option><option value="groq">Groq</option></select>
+      </label>
+      <label>Gemini: clave de API (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>)
         <input id="apiKey" type="password" autocomplete="off" placeholder="AIza…">
       </label>
-      <label>Modelo
+      <label>Gemini: modelo
         <input id="modelo" type="text" placeholder="gemini-flash-latest">
+      </label>
+      <label>Groq: clave de API (<a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>)
+        <input id="groqKey" type="password" autocomplete="off" placeholder="gsk_…">
+      </label>
+      <label>Groq: modelo
+        <input id="groqModelo" type="text" placeholder="llama-3.3-70b-versatile">
       </label>
       <label>Valor del dólar (opcional, se guarda con cada gasto)
         <input id="dolar" type="number" inputmode="decimal" placeholder="Ej: 1200">

@@ -24,6 +24,7 @@ function toast(msg) {
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.t));
+  document.body.dataset.tab = b.dataset.t;
   if (b.dataset.t === 'stats') renderStats();
   if (b.dataset.t === 'historial') renderHistorial();
   if (b.dataset.t === 'registrar') renderHoy();
@@ -450,8 +451,10 @@ function renderCompra() {
       </div>
     </div>`;
   }).join('') || '<p class="hint" style="text-align:center">El carrito está vacío.</p>';
-  $('cTotal').textContent = peso(totalCarrito());
-  $('cCant').textContent = carrito.length ? `${carrito.length} producto(s)` : '';
+  const total = peso(totalCarrito());
+  const cant = carrito.length ? `${carrito.length} producto(s)` : '';
+  $('cTotal').textContent = total; $('cTotalFijo').textContent = total;
+  $('cCant').textContent = cant; $('cCantFija').textContent = cant ? '· ' + cant : '';
   renderDif();
   renderPrecios();
 }
@@ -539,6 +542,12 @@ $('pAgregar').addEventListener('click', () => {
 cargarAjustes();
 renderHoy();
 renderCompra();
+// La barra de total se apoya justo sobre el menú, sea cual sea su alto en cada celular
+const navEl = document.querySelector('nav');
+const ajustarNav = () => document.documentElement.style.setProperty('--nav-h', navEl.offsetHeight + 'px');
+ajustarNav();
+if ('ResizeObserver' in window) new ResizeObserver(ajustarNav).observe(navEl);
+
 // ---------- Aviso de actualización ----------
 const LS_UPD = 'gastos.actualizando';
 

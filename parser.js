@@ -126,11 +126,38 @@ function numerosADigitos(t) {
   return out.join(' ');
 }
 
-const UNI = '(kilos?|kgs?|gramos?|grs?|gr|g|litros?|lts?|lt|l|mililitros?|ml|unidad(?:es)?|unid|u|docenas?)';
+// Envases y presentaciones que cuentan como "unidad": "rúcula, atado, 2000" => 2000 por unidad
+const ENV = 'atados?|paquetes?|bolsas?|bolsones?|cajas?|cajones?|maples?|bandejas?|packs?|botellas?|latas?|frascos?|racimos?|manojos?|cabezas?';
+const UNI = '(kilos?|kgs?|gramos?|grs?|gr|g|litros?|lts?|lt|l|mililitros?|ml|unidad(?:es)?|unid|u|docenas?|' + ENV + ')';
 const NUM = '(\\d+(?:\\.\\d+)?)';
+const ENV_RE = new RegExp('\\b(' + ENV + ')\\b');
+const ENV_EXACTO = new RegExp('^(?:' + ENV + ')$');
+
+// "atados" => "atado"; '' si no es un envase
+function etiquetaDe(u) { return u && ENV_EXACTO.test(u) ? u.replace(/ones$/, 'on').replace(/s$/, '') : ''; }
+
+// Saca el envase del nombre: "rucula atado" => { nombre: "rucula", etiqueta: "atado" }
+function sacarEnvase(nombre) {
+  const m = nombre.match(ENV_RE);
+  if (!m) return { nombre, etiqueta: '' };
+  const sin = nombre.replace(ENV_RE, ' ').replace(/\s+/g, ' ').trim();
+  return { nombre: limpiarNombre(sin) || nombre, etiqueta: etiquetaDe(m[1]) };
+}
+
+const PRODUCTOS_POR_UNIDAD = /\b(lechuga|rucula|acelga|espinaca|perejil|cilantro|albahaca|apio|puerro|verdeo|coliflor|brocoli|remolacha|huevo|pan|baguette|facturas?|medialunas?|gaseosa|cerveza|yogur|alfajor|galletitas|fideos|arroz|yerba|azucar|harina|sal)\b/;
+const PRODUCTOS_POR_LITRO = /\b(leche|aceite|agua|jugo|vinagre|vino|lavandina|detergente)\b/;
+
+// Unidad más probable para un producto sin unidad explícita: kg, l o u
+function sugerirUnidad(nombre) {
+  const n = sinTildes(nombre.toLowerCase());
+  if (ENV_RE.test(n) || PRODUCTOS_POR_UNIDAD.test(n)) return 'u';
+  if (PRODUCTOS_POR_LITRO.test(n)) return 'l';
+  return 'kg';
+}
 
 function normUnidad(u) {
   if (!u) return 'u';
+  if (ENV_EXACTO.test(u)) return 'u';
   if (u === 'ml' || /^mili/.test(u)) return 'ml';
   if (/^k/.test(u)) return 'kg';
   if (/^g/.test(u)) return 'g';
@@ -150,16 +177,16 @@ function parseSegmento(s) {
 
   // Declaración de precio: "tomate a 2500 el kilo" / "2500 el kilo de tomate"
   let m = s.match(new RegExp(`^(.*?)\\s*(?:\\b(?:a|sale|cuesta|esta|vale)\\b)?\\s*${NUM}\\s*(?:el|la|por|x|cada|/)\\s*${UNI}\\b\\s*(?:de\\s+(.+))?$`));
-  let producto, precio, uni;
+  let producto, precio, uni, etiqueta = '';
   if (m && (limpiarNombre(m[1]) || m[4])) {
-    producto = limpiarNombre(m[1]) || limpiarNombre(m[4]); precio = +m[2]; uni = normUnidad(m[3]);
+    producto = limpiarNombre(m[1]) || limpiarNombre(m[4]); precio = +m[2]; uni = normUnidad(m[3]); etiqueta = etiquetaDe(m[3]);
   } else if ((m = s.match(new RegExp(`^(?:el|la)\\s+${UNI}\\s+de\\s+(.+?)\\s*(?:\\b(?:sale|cuesta|esta|vale|a)\\b)?\\s*${NUM}$`)))) {
-    producto = limpiarNombre(m[2]); precio = +m[3]; uni = normUnidad(m[1]);
+    producto = limpiarNombre(m[2]); precio = +m[3]; uni = normUnidad(m[1]); etiqueta = etiquetaDe(m[1]);
   }
   if (producto) {
     if (uni === 'docena') { precio /= 12; uni = 'u'; }
     if (uni === 'g') uni = 'kg';
-    return { tipo: 'precio', producto, precio, unidad: uni };
+    return { tipo: 'precio', producto, precio, unidad: uni, etiqueta };
   }
 
   // Compra. Precio incluido: "2 kilos de tomate a 2500"
@@ -167,17 +194,21 @@ function parseSegmento(s) {
   const mp = s.match(new RegExp(`^(.+?)\\s+(?:a|sale|cuesta|vale)\\s+${NUM}$`));
   if (mp) { s = mp[1]; inline = +mp[2]; }
 
-  let cantidad, unidad, nombre, fijo = false;
-  if ((m = s.match(new RegExp(`^${NUM}\\s*${UNI}\\b\\s*(?:de\\s+)?(.+)$`)))) { cantidad = +m[1]; unidad = normUnidad(m[2]); nombre = m[3]; }
-  else if ((m = s.match(new RegExp(`^(.+?)\\s+${NUM}\\s*${UNI}$`)))) { cantidad = +m[2]; unidad = normUnidad(m[3]); nombre = m[1]; }
+  let cantidad, unidad, nombre, fijo = false, etiq = '';
+  if ((m = s.match(new RegExp(`^${NUM}\\s*${UNI}\\b\\s*(?:de\\s+)?(.+)$`)))) { cantidad = +m[1]; unidad = normUnidad(m[2]); etiq = etiquetaDe(m[2]); nombre = m[3]; }
+  else if ((m = s.match(new RegExp(`^(.+?)\\s+${NUM}\\s*${UNI}$`)))) { cantidad = +m[2]; unidad = normUnidad(m[3]); etiq = etiquetaDe(m[3]); nombre = m[1]; }
   else if ((m = s.match(new RegExp(`^${NUM}\\s+(?:de\\s+)?(.+)$`)))) { cantidad = +m[1]; unidad = 'u'; nombre = m[2]; }
-  else if (!inline && (m = s.match(new RegExp(`^(.+?)\\s+${NUM}$`)))) { cantidad = 1; unidad = 'u'; nombre = m[1]; inline = +m[2]; fijo = true; }
+  else if (!inline && (m = s.match(new RegExp(`^(.+?)\\s+${NUM}$`)))) { cantidad = 1; nombre = m[1]; inline = +m[2]; fijo = true; }
   else { cantidad = 1; unidad = 'u'; nombre = s; }
 
   if (unidad === 'docena') { cantidad *= 12; unidad = 'u'; }
   nombre = limpiarNombre(nombre);
+  const env = sacarEnvase(nombre);   // "rucula atado" => "rucula" + etiqueta "atado"
+  nombre = env.nombre; etiq = etiq || env.etiqueta;
   if (!nombre) return null;
-  return { tipo: 'compra', producto: nombre, cantidad, unidad, precio: inline, guardarPrecio: !!inline && !fijo };
+  // "Rúcula atado 2000" / "tomate 2500": precio por la unidad más probable (atado => unidad, tomate => kilo)
+  if (fijo) unidad = etiq ? 'u' : sugerirUnidad(nombre);
+  return { tipo: 'compra', producto: nombre, cantidad, unidad, precio: inline, guardarPrecio: !!inline, etiqueta: etiq };
 }
 
 function interpretarCompraLocal(texto) {

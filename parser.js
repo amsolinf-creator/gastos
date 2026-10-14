@@ -41,7 +41,8 @@ function parsePalabrasNum(ws) {
   let total = 0, actual = 0;
   for (const w of ws) {
     if (w === 'y') continue;
-    if (w in UNIDADES) actual += UNIDADES[w];
+    if (esDigitos(w)) actual += parseDigitos(w);
+    else if (w in UNIDADES) actual += UNIDADES[w];
     else if (w in DECENAS) actual += DECENAS[w];
     else if (w in CENTENAS) actual += CENTENAS[w];
     else if (w === 'mil') { total += (actual || 1) * 1000; actual = 0; }
@@ -100,4 +101,95 @@ function interpretarLocal(texto, hoy = new Date()) {
   return items.map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
 }
 
-if (typeof module !== 'undefined') module.exports = { interpretarLocal, adivinarCategoria, CATEGORIAS, fechaISO };
+// ---------- Modo compra: precios por kilo y cantidades ----------
+// Convierte "dos lucas", "mil doscientos", "2 mil" en dígitos planos ("2000", "1200")
+function numerosADigitos(t) {
+  const tokens = t.replace(/(?<!\d),|,(?!\d)/g, ' , ').split(/\s+/).filter(Boolean);
+  const out = [];
+  let i = 0;
+  while (i < tokens.length) {
+    if (!(esDigitos(tokens[i]) || esPalabraNum(tokens[i]))) { out.push(tokens[i++]); continue; }
+    const corrida = [];
+    let j = i;
+    while (j < tokens.length) {
+      const x = tokens[j];
+      if (esDigitos(x) || esPalabraNum(x)) { corrida.push(x); j++; }
+      else if (x === 'y' && corrida.length && esPalabraNum(tokens[j + 1] || '') && esPalabraNum(corrida[corrida.length - 1])) { corrida.push(x); j++; }
+      else break;
+    }
+    let v = parsePalabrasNum(corrida);
+    if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { v *= 1000; j++; }
+    if (/^(pesos|peso|mangos|mango)$/.test(tokens[j] || '')) j++;
+    out.push(String(v));
+    i = j;
+  }
+  return out.join(' ');
+}
+
+const UNI = '(kilos?|kgs?|gramos?|grs?|gr|g|litros?|lts?|lt|l|mililitros?|ml|unidad(?:es)?|unid|u|docenas?)';
+const NUM = '(\\d+(?:\\.\\d+)?)';
+
+function normUnidad(u) {
+  if (!u) return 'u';
+  if (u === 'ml' || /^mili/.test(u)) return 'ml';
+  if (/^k/.test(u)) return 'kg';
+  if (/^g/.test(u)) return 'g';
+  if (/^l/.test(u)) return 'l';
+  if (/^d/.test(u)) return 'docena';
+  return 'u';
+}
+
+function limpiarNombre(n) {
+  return n.replace(/\b(el|la|los|las|un|una|unos|unas|de|del|por|que|con)\b/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function parseSegmento(s) {
+  for (let k = 0; k < 3; k++) s = s.trim().replace(/^(tambien|ademas|ahora|dame|quiero|compre|llevo|puse|agrega|agregar|anota|anotame|sumame|suma|poneme|pone)\s+/, '');
+  s = s.trim();
+  if (!s) return null;
+
+  // Declaración de precio: "tomate a 2500 el kilo" / "2500 el kilo de tomate"
+  let m = s.match(new RegExp(`^(.*?)\\s*(?:\\b(?:a|sale|cuesta|esta|vale)\\b)?\\s*${NUM}\\s*(?:el|la|por|x|cada|/)\\s*${UNI}\\b\\s*(?:de\\s+(.+))?$`));
+  let producto, precio, uni;
+  if (m && (limpiarNombre(m[1]) || m[4])) {
+    producto = limpiarNombre(m[1]) || limpiarNombre(m[4]); precio = +m[2]; uni = normUnidad(m[3]);
+  } else if ((m = s.match(new RegExp(`^(?:el|la)\\s+${UNI}\\s+de\\s+(.+?)\\s*(?:\\b(?:sale|cuesta|esta|vale|a)\\b)?\\s*${NUM}$`)))) {
+    producto = limpiarNombre(m[2]); precio = +m[3]; uni = normUnidad(m[1]);
+  }
+  if (producto) {
+    if (uni === 'docena') { precio /= 12; uni = 'u'; }
+    if (uni === 'g') uni = 'kg';
+    return { tipo: 'precio', producto, precio, unidad: uni };
+  }
+
+  // Compra. Precio incluido: "2 kilos de tomate a 2500"
+  let inline = 0;
+  const mp = s.match(new RegExp(`^(.+?)\\s+(?:a|sale|cuesta|vale)\\s+${NUM}$`));
+  if (mp) { s = mp[1]; inline = +mp[2]; }
+
+  let cantidad, unidad, nombre, fijo = false;
+  if ((m = s.match(new RegExp(`^${NUM}\\s*${UNI}\\b\\s*(?:de\\s+)?(.+)$`)))) { cantidad = +m[1]; unidad = normUnidad(m[2]); nombre = m[3]; }
+  else if ((m = s.match(new RegExp(`^(.+?)\\s+${NUM}\\s*${UNI}$`)))) { cantidad = +m[2]; unidad = normUnidad(m[3]); nombre = m[1]; }
+  else if ((m = s.match(new RegExp(`^${NUM}\\s+(?:de\\s+)?(.+)$`)))) { cantidad = +m[1]; unidad = 'u'; nombre = m[2]; }
+  else if (!inline && (m = s.match(new RegExp(`^(.+?)\\s+${NUM}$`)))) { cantidad = 1; unidad = 'u'; nombre = m[1]; inline = +m[2]; fijo = true; }
+  else { cantidad = 1; unidad = 'u'; nombre = s; }
+
+  if (unidad === 'docena') { cantidad *= 12; unidad = 'u'; }
+  nombre = limpiarNombre(nombre);
+  if (!nombre) return null;
+  return { tipo: 'compra', producto: nombre, cantidad, unidad, precio: inline, guardarPrecio: !!inline && !fijo };
+}
+
+function interpretarCompraLocal(texto) {
+  let t = sinTildes(texto.toLowerCase()).replace(/\$/g, ' ');
+  t = t.replace(/\b(?:tres cuartos|3\/4)(?: de)? kilos?\b/g, '0.75 kilo')
+       .replace(/\b(?:un )?cuarto(?: de)? kilos?\b/g, '0.25 kilo')
+       .replace(/\b(?:un )?kilo y medio\b/g, '1.5 kilos')
+       .replace(/\b(?:un )?kilo y cuarto\b/g, '1.25 kilos');
+  t = numerosADigitos(t);
+  t = t.replace(/(\d+(?:\.\d+)?) (kilos?|kgs?|litros?) y 0\.5\b/g, (_, n, u) => (parseFloat(n) + 0.5) + ' ' + u);
+  return t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b|\bademas\b)\s*/).map(parseSegmento).filter(Boolean)
+    .map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
+}
+
+if (typeof module !== 'undefined') module.exports = { interpretarCompraLocal, interpretarLocal, adivinarCategoria, CATEGORIAS, fechaISO };

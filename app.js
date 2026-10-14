@@ -697,6 +697,9 @@ $('pAgregar').addEventListener('click', () => {
   $('pNom').value = ''; $('pPrecio').value = ''; unidadManual = false; renderPrecios();
 });
 
+// Pantalla siempre vertical (refuerzo del "orientation" del manifest; solo aplica con la app instalada)
+try { screen.orientation.lock('portrait').catch(() => {}); } catch {}
+
 // ---------- Inicio ----------
 cargarAjustes();
 renderHoy();

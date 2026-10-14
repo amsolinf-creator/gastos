@@ -52,6 +52,9 @@ body[data-tab="compra"] main { padding-bottom: 150px; }
 .dif.bien { color: var(--ok); }
 details { margin-top: 20px; background: var(--card); border-radius: 12px; padding: 10px 12px; }
 summary { cursor: pointer; font-weight: 600; }
+.sub-titulo { font-size: 14px; color: var(--mute); margin: 16px 0 6px; font-weight: 600; }
+#pMic { margin: 4px auto; }
+#pEstado { text-align: center; }
 .pform { background: var(--bg); }
 .pfila { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
 .pfila span { flex: 1; }

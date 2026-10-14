@@ -540,10 +540,45 @@ cargarAjustes();
 renderHoy();
 renderCompra();
 // ---------- Aviso de actualización ----------
+const LS_UPD = 'gastos.actualizando';
+
+// Pregunta al service worker qué versión es (null si no responde)
+function obtenerVersion(sw) {
+  return new Promise(ok => {
+    if (!sw) return ok(null);
+    const canal = new MessageChannel();
+    canal.port1.onmessage = e => ok(e.data);
+    sw.postMessage('VERSION', [canal.port2]);
+    setTimeout(() => ok(null), 1500);
+  });
+}
+
 function mostrarAvisoActualizacion(sw) {
   $('actualizar').hidden = false;
-  $('btnActualizar').onclick = () => { $('btnActualizar').disabled = true; sw.postMessage('SKIP_WAITING'); };
+  $('btnActualizar').onclick = async () => {
+    $('btnActualizar').disabled = true;
+    const antes = await obtenerVersion(navigator.serviceWorker.controller);
+    try { localStorage.setItem(LS_UPD, antes || '?'); } catch {}
+    sw.postMessage('SKIP_WAITING');
+  };
 }
+
+// Tras recargar: confirma que la versión nueva quedó funcionando
+async function confirmarActualizacion(reg) {
+  let previa = null;
+  try { previa = localStorage.getItem(LS_UPD); localStorage.removeItem(LS_UPD); } catch {}
+  if (!previa) return;
+  const ahora = await obtenerVersion(navigator.serviceWorker.controller || reg.active);
+  const cartel = $('okActualizado');
+  const ok = !!ahora && ahora !== previa;
+  cartel.classList.toggle('error', !ok);
+  $('okTexto').textContent = ok
+    ? `✅ App actualizada correctamente (${ahora})`
+    : '⚠ No se pudo confirmar la actualización. Cerrá y volvé a abrir la app.';
+  cartel.hidden = false;
+  if (ok) setTimeout(() => (cartel.hidden = true), 8000);
+}
+$('okCerrar').addEventListener('click', () => ($('okActualizado').hidden = true));
 
 if ('serviceWorker' in navigator) {
   const habiaControlador = !!navigator.serviceWorker.controller;
@@ -553,6 +588,7 @@ if ('serviceWorker' in navigator) {
     recargando = true; location.reload();
   });
   navigator.serviceWorker.register('sw.js').then(reg => {
+    confirmarActualizacion(reg);
     if (reg.waiting && navigator.serviceWorker.controller) mostrarAvisoActualizacion(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const nuevo = reg.installing;

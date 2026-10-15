@@ -54,6 +54,9 @@ function cambiarLugar(valor) {
 document.addEventListener('change', e => { if (e.target.id === 'cLugar' || e.target.id === 'gLugar') cambiarLugar(e.target.value); });
 
 const $ = id => document.getElementById(id);
+const ICX = '<svg class="ic ic-s"><use href="#i-x"/></svg>';
+const CAT_COLOR = { 'Comida': '#f59e0b', 'Verdulería': '#34d399', 'Carnicería': '#fb7185', 'Limpieza': '#22d3ee', 'Transporte': '#a78bfa', 'Salud': '#f472b6', 'Hogar': '#fbbf24', 'Ocio': '#818cf8', 'Ropa': '#2dd4bf', 'Servicios': '#60a5fa', 'Otros': '#94a3b8' };
+const colorCat = c => CAT_COLOR[c] || '#94a3b8';
 const peso = n => '$' + Math.round(n).toLocaleString('es-AR');
 const hoyISO = () => fechaISO(new Date());
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -272,7 +275,7 @@ function renderPendientes() {
   $('resultado').hidden = !pendientes.length;
   $('items').innerHTML = pendientes.map((p, i) => `
     <div class="item" data-i="${i}">
-      <button class="quitar" data-q="${i}" aria-label="Quitar">✕</button>
+      <button class="quitar" data-q="${i}" aria-label="Quitar">${ICX}</button>
       <input class="nom full" data-k="producto" value="${esc(p.producto)}" aria-label="Producto">
       <select data-k="categoria">${CATEGORIAS.map(c => `<option${c === p.categoria ? ' selected' : ''}>${c}</option>`).join('')}</select>
       <input data-k="monto" type="number" inputmode="decimal" value="${p.monto}" aria-label="Monto">
@@ -287,7 +290,8 @@ $('items').addEventListener('input', e => {
   if (k === 'categoria') pendientes[+fila.dataset.i].catEditada = true;
 });
 $('items').addEventListener('click', e => {
-  const q = e.target.dataset.q; if (q === undefined) return;
+  const b = e.target.closest('[data-q]'); if (!b) return;
+  const q = b.dataset.q;
   pendientes.splice(+q, 1); renderPendientes();
 });
 $('agregarFila').addEventListener('click', () => {
@@ -371,6 +375,8 @@ function renderStats() {
       <i style="height:${(d.total / max) * 85}%"></i><span>${d.label}</span>
     </div>`).join('');
 
+  $('grafico').scrollLeft = $('grafico').scrollWidth;   // que se vea el período actual (el último)
+
   const p = act(vista);
   const nombres = { dia: 'hoy', semana: 'esta semana', mes: 'este mes', anio: 'este año' };
   $('catTitulo').textContent = 'Por categoría — ' + nombres[vista];
@@ -380,8 +386,8 @@ function renderStats() {
   const filas = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
   const totalP = filas.reduce((s, [, v]) => s + v, 0) || 1;
   $('categorias').innerHTML = filas.length
-    ? filas.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
-    : '<p class="hint">Sin gastos en este período.</p>';
+    ? filas.map(([c, v]) => `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
+    : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 
   $('lugTitulo').textContent = 'Por lugar — ' + nombres[vista];
   const porLugar = {};
@@ -391,23 +397,23 @@ function renderStats() {
   const totalL = filasL.reduce((s, [, v]) => s + v, 0) || 1;
   $('lugares').innerHTML = filasL.length
     ? filasL.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalL * 100)}%</span></div><div class="pista"><i style="width:${v / totalL * 100}%"></i></div></div>`).join('')
-    : '<p class="hint">Sin gastos en este período.</p>';
+    : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 }
 
 // ---------- Historial ----------
 function renderHistorial() {
   const orden = [...gastos].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id));
-  if (!orden.length) { $('lista').innerHTML = '<p class="hint">Todavía no hay gastos.</p>'; return; }
+  if (!orden.length) { $('lista').innerHTML = '<div class="vacio"><svg class="ic"><use href="#i-bag"/></svg>Todavía no hay gastos.</div>'; return; }
   const porDia = {};
   orden.forEach(g => (porDia[g.fecha] = porDia[g.fecha] || []).push(g));
   $('lista').innerHTML = Object.entries(porDia).map(([f, gs]) => `
     <div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((s, g) => s + g.monto, 0))}</span></div>
-    ${gs.map(g => `<div class="gasto"><div>${esc(g.producto)}
+    ${gs.map(g => `<div class="gasto"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
       <div class="metas">
         <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${CATEGORIAS.map(c => `<option${c === g.categoria ? ' selected' : ''}>${c}</option>`).join('')}</select>
         <select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
       </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
-      <div><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">✕</button></div></div>`).join('')}`).join('');
+      <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`).join('')}`).join('');
 }
 // Corregir categoría o lugar de un gasto ya guardado (la categoría corregida se recuerda para el futuro)
 $('lista').addEventListener('change', e => {
@@ -432,7 +438,8 @@ $('hReclasificar').addEventListener('click', () => {
   toast(n ? `${n} gasto(s) reclasificado(s)` : 'No hay gastos en «Otros» que pueda reclasificar');
 });
 $('lista').addEventListener('click', e => {
-  const id = e.target.dataset.borrar; if (!id) return;
+  const b = e.target.closest('[data-borrar]'); if (!b) return;
+  const id = b.dataset.borrar;
   gastos = gastos.filter(g => g.id !== id); persistir(); renderHistorial(); toast('Gasto borrado');
 });
 
@@ -639,21 +646,18 @@ function renderCompra() {
     return `<div class="linea" data-id="${it.id}">
       <div class="sup">
         <input data-k="producto" value="${esc(it.producto)}" aria-label="Producto">
-        <span class="sub${falta ? ' falta' : ''}">${falta ? (it.precio > 0 ? '⚠ kg/u?' : '⚠ precio') : peso(sub)}</span>
-        <button class="quitar" data-q="${it.id}" aria-label="Quitar">✕</button>
+        <span class="sub${falta ? ' falta' : ''}">${falta ? (it.precio > 0 ? 'revisá kg/u' : 'falta precio') : peso(sub)}</span>
+        <button class="quitar" data-q="${it.id}" aria-label="Quitar">${ICX}</button>
       </div>
       <div class="inf">
         <input data-k="cantidad" type="number" inputmode="decimal" step="any" value="${it.cantidad}" aria-label="Cantidad">
-        <select data-k="unidad">${UNIDADES_CANT.map(u => `<option${u === it.unidad ? ' selected' : ''}>${u}</option>`).join('')}</select>
-        <span style="text-align:right">× $</span>
-        <input data-k="precio" type="number" inputmode="decimal" step="any" value="${it.precio || ''}" placeholder="precio" aria-label="Precio">
-      </div>
-      <div class="inf" style="grid-template-columns:1fr 110px">
-        <span>precio por</span>
-        <select data-k="up">${[['kg', 'kilo'], ['l', 'litro'], ['u', 'unidad']].map(([v, n]) => `<option value="${v}"${v === it.up ? ' selected' : ''}>${n}</option>`).join('')}</select>
+        <select data-k="unidad" aria-label="Unidad">${UNIDADES_CANT.map(u => `<option${u === it.unidad ? ' selected' : ''}>${u}</option>`).join('')}</select>
+        <span class="por">×</span>
+        <input data-k="precio" type="number" inputmode="decimal" step="any" value="${it.precio || ''}" placeholder="$ precio" aria-label="Precio">
+        <select data-k="up" aria-label="Precio por">${[['kg', '/ kilo'], ['l', '/ litro'], ['u', '/ unidad']].map(([v, n]) => `<option value="${v}"${v === it.up ? ' selected' : ''}>${n}</option>`).join('')}</select>
       </div>
     </div>`;
-  }).join('') || '<p class="hint" style="text-align:center">El carrito está vacío.</p>';
+  }).join('') || '<div class="vacio"><svg class="ic"><use href="#i-cart"/></svg>El carrito está vacío.<br>Dictá lo que vas poniendo y se suma solo.</div>';
   const total = peso(totalCarrito());
   const cant = carrito.length ? `${carrito.length} producto(s)` : '';
   $('cTotal').textContent = total; $('cTotalFijo').textContent = total;
@@ -688,7 +692,8 @@ $('cItems').addEventListener('change', e => {
   guardarCarrito(); renderCompra();
 });
 $('cItems').addEventListener('click', e => {
-  const q = e.target.dataset.q; if (!q) return;
+  const b = e.target.closest('[data-q]'); if (!b) return;
+  const q = b.dataset.q;
   carrito = carrito.filter(x => x.id !== q); guardarCarrito(); renderCompra();
 });
 $('cCaja').addEventListener('input', renderDif);
@@ -722,7 +727,7 @@ function renderPrecios() {
     <div class="pfila"><span>${esc(p.nombre)}</span>
       <input type="number" inputmode="decimal" step="any" value="${p.precio}" data-pi="${i}" aria-label="Precio de ${esc(p.nombre)}">
       <small>/ ${esc(p.etiqueta || nombreUnidad[p.unidad] || p.unidad)}</small>
-      <button class="quitar" data-pdel="${i}" aria-label="Borrar">✕</button></div>`).join('')
+      <button class="quitar" data-pdel="${i}" aria-label="Borrar">${ICX}</button></div>`).join('')
     || '<p class="hint">Todavía no cargaste precios. Decí “tomate a 2500 el kilo” o agregalos acá.</p>';
 }
 $('pLista').addEventListener('change', e => {
@@ -731,7 +736,8 @@ $('pLista').addEventListener('change', e => {
   if (v > 0) { precios[+i].precio = v; guardarPrecios(); toast('Precio actualizado (aplica a lo que cargues desde ahora)'); }
 });
 $('pLista').addEventListener('click', e => {
-  const i = e.target.dataset.pdel; if (i === undefined) return;
+  const b = e.target.closest('[data-pdel]'); if (!b) return;
+  const i = b.dataset.pdel;
   precios.splice(+i, 1); guardarPrecios(); renderPrecios();
 });
 // ----- Editar la lista por voz o texto: cambiar precios, borrar productos, borrar todo -----

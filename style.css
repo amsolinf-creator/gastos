@@ -55,6 +55,10 @@ summary { cursor: pointer; font-weight: 600; }
 .sub-titulo { font-size: 14px; color: var(--mute); margin: 16px 0 6px; font-weight: 600; }
 #pMic { margin: 4px auto; }
 #pEstado { text-align: center; }
+.mini { width: auto; max-width: 48%; padding: 3px 6px; font-size: 12px; margin: 4px 4px 0 0; border-radius: 8px; }
+.metas { display: flex; flex-wrap: wrap; }
+label.lugar { margin: 0 0 10px; }
+label.lugar select { margin-top: 4px; }
 .pform { background: var(--bg); }
 .pfila { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
 .pfila span { flex: 1; }

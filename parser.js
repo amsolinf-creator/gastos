@@ -1,26 +1,54 @@
 // Intérprete local (sin IA): "leche mil doscientos cincuenta, dos lucas de verdura"
 const CATEGORIAS = ['Comida', 'Verdulería', 'Carnicería', 'Limpieza', 'Transporte', 'Salud', 'Hogar', 'Ocio', 'Ropa', 'Servicios', 'Otros'];
 
-const PALABRAS_CAT = {
-  'Verdulería': ['verdura', 'verduras', 'fruta', 'frutas', 'tomate', 'papa', 'papas', 'cebolla', 'lechuga', 'banana', 'manzana', 'zapallo', 'zanahoria', 'limon'],
-  'Carnicería': ['carne', 'asado', 'pollo', 'milanesa', 'milanesas', 'chorizo', 'cerdo', 'pescado', 'jamon', 'fiambre', 'bife', 'carnicería', 'carniceria'],
-  'Comida': ['leche', 'pan', 'queso', 'huevos', 'huevo', 'fideos', 'arroz', 'aceite', 'yerba', 'cafe', 'azucar', 'harina', 'galletitas', 'gaseosa', 'agua', 'cerveza', 'vino', 'almuerzo', 'cena', 'desayuno', 'pizza', 'empanadas', 'helado', 'super', 'supermercado', 'comida', 'facturas', 'medialunas', 'manteca', 'yogur'],
-  'Limpieza': ['lavandina', 'detergente', 'jabon', 'limpieza', 'esponja', 'desodorante', 'shampoo', 'papel higienico'],
-  'Transporte': ['nafta', 'colectivo', 'bondi', 'sube', 'taxi', 'uber', 'cabify', 'peaje', 'estacionamiento', 'combustible', 'gnc', 'remis', 'tren', 'subte'],
-  'Salud': ['farmacia', 'remedio', 'remedios', 'medico', 'doctor', 'dentista', 'analisis', 'obra social', 'prepaga', 'ibuprofeno'],
-  'Hogar': ['alquiler', 'expensas', 'ferreteria', 'arreglo', 'plomero', 'electricista', 'muebles', 'lampara'],
-  'Ocio': ['cine', 'netflix', 'spotify', 'salida', 'bar', 'boliche', 'juego', 'libro', 'regalo', 'restaurante', 'resto', 'cafeteria'],
-  'Ropa': ['remera', 'pantalon', 'zapatillas', 'campera', 'ropa', 'zapatos', 'medias', 'camisa'],
-  'Servicios': ['luz', 'gas', 'internet', 'celular', 'telefono', 'cable', 'abl', 'monotributo', 'impuesto', 'seguro', 'recarga'],
-};
-
 const sinTildes = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-function adivinarCategoria(texto) {
-  const t = sinTildes(texto.toLowerCase());
-  for (const [cat, palabras] of Object.entries(PALABRAS_CAT)) {
-    if (palabras.some(p => new RegExp('\\b' + sinTildes(p) + '\\b').test(t))) return cat;
+// Palabras clave por categoría: sin tildes y en singular (el plural se reconoce solo).
+// Las frases de varias palabras tienen prioridad ("tomate triturado" es Comida aunque "tomate" sea Verdulería).
+const PALABRAS_CAT = {
+  'Limpieza': ['lavandina', 'detergente', 'jabon', 'limpieza', 'esponja', 'desodorante', 'shampoo', 'acondicionador', 'papel higienico', 'rollo de cocina', 'servilleta', 'bolsa de residuo', 'trapo', 'escoba', 'suavizante', 'limpiador', 'desinfectante', 'insecticida', 'cepillo', 'pasta dental', 'dentifrico', 'algodon', 'toallita', 'panal', 'higiene', 'lysoform', 'cif', 'ayudin', 'alcohol en gel', 'trapo de piso', 'bolsa de basura'],
+  'Verdulería': ['verdura', 'fruta', 'tomate', 'papa', 'batata', 'cebolla', 'verdeo', 'ajo', 'zanahoria', 'zapallo', 'zapallito', 'calabaza', 'pepino', 'pimiento', 'morron', 'aji', 'choclo', 'arveja', 'remolacha', 'repollo', 'coliflor', 'brocoli', 'apio', 'puerro', 'perejil', 'cilantro', 'albahaca', 'menta', 'lechuga', 'rucula', 'acelga', 'espinaca', 'achicoria', 'radicheta', 'berenjena', 'hongo', 'champignon', 'palta', 'limon', 'naranja', 'mandarina', 'pomelo', 'manzana', 'pera', 'banana', 'frutilla', 'uva', 'durazno', 'ciruela', 'kiwi', 'melon', 'sandia', 'anana', 'mango', 'cereza', 'higo', 'arandano', 'mandioca', 'hinojo', 'nabo', 'rabano', 'rabanito', 'esparrago', 'alcachofa', 'zucchini', 'zuccini', 'chaucha', 'jengibre', 'ensalada', 'aceituna fresca', 'damasco', 'membrillo', 'pelon', 'pomelo', 'lima', 'maiz', 'verdulería', 'verduleria', 'cabutia', 'batata'],
+  'Carnicería': ['carne', 'asado', 'vacio', 'bife', 'bondiola', 'pollo', 'pechuga', 'muslo', 'milanesa', 'chorizo', 'morcilla', 'salchicha', 'cerdo', 'cordero', 'pescado', 'merluza', 'salmon', 'jamon', 'fiambre', 'salame', 'panceta', 'hamburguesa', 'matambre', 'costilla', 'picada', 'carnaza', 'nalga', 'peceto', 'cuadril', 'lomo', 'higado', 'achura', 'mondongo', 'chinchulin', 'entraña', 'entrana', 'tapa de asado', 'carniceria', 'carnicería', 'paleta', 'osobuco', 'bola de lomo', 'pata muslo', 'suprema', 'mortadela', 'bacon'],
+  'Comida': ['leche', 'pan', 'queso', 'huevo', 'fideo', 'arroz', 'aceite', 'yerba', 'cafe', 'te', 'azucar', 'harina', 'galletita', 'gaseosa', 'agua', 'cerveza', 'vino', 'almuerzo', 'cena', 'desayuno', 'pizza', 'empanada', 'helado', 'super', 'supermercado', 'comida', 'factura', 'medialuna', 'manteca', 'yogur', 'crema', 'dulce de leche', 'mermelada', 'sal', 'vinagre', 'salsa', 'tomate triturado', 'pure de tomate', 'tomate en lata', 'papa frita', 'papas fritas', 'cereal', 'avena', 'pasta', 'ravioles', 'tallarin', 'polenta', 'pure', 'mayonesa', 'ketchup', 'mostaza', 'snack', 'chocolate', 'alfajor', 'caramelo', 'chicle', 'golosina', 'jugo', 'soda', 'energizante', 'hielo', 'pan rallado', 'rebozador', 'premezcla', 'gelatina', 'flan', 'postre', 'dulce', 'miel', 'aceituna', 'atun', 'caballa', 'sardina', 'conserva', 'legumbre', 'lenteja', 'garbanzo', 'poroto', 'sopa', 'caldo', 'condimento', 'pimienta', 'oregano', 'comino', 'pimenton', 'tostada', 'budin', 'torta', 'masa', 'tapa de empanada', 'rico', 'bebida', 'fernet', 'whisky', 'gin', 'licor', 'champagne', 'sidra', 'mani', 'nuez', 'almendra', 'pasa de uva', 'fruta seca', 'granola', 'barra de cereal', 'mate cocido', 'gaseosas', 'panaderia', 'panadería', 'kiosco', 'almacen', 'almacén'],
+  'Transporte': ['nafta', 'colectivo', 'bondi', 'sube', 'taxi', 'uber', 'cabify', 'peaje', 'estacionamiento', 'combustible', 'gnc', 'remis', 'tren', 'subte', 'pasaje', 'cochera', 'gasoil', 'patente', 'lavadero', 'neumatico', 'cubierta'],
+  'Salud': ['farmacia', 'remedio', 'medico', 'doctor', 'dentista', 'analisis', 'obra social', 'prepaga', 'ibuprofeno', 'paracetamol', 'vitamina', 'curita', 'termometro', 'anteojo', 'optica', 'consulta', 'kinesiologo', 'psicologo', 'medicamento', 'jarabe', 'pastilla', 'crema dental'],
+  'Hogar': ['alquiler', 'expensas', 'ferreteria', 'arreglo', 'plomero', 'electricista', 'mueble', 'lampara', 'pintura', 'herramienta', 'cortina', 'sabana', 'almohada', 'pila', 'foco', 'tornillo', 'cable de luz', 'cerradura', 'colchon', 'toalla', 'vajilla', 'olla', 'sarten', 'vaso', 'plato'],
+  'Ocio': ['cine', 'netflix', 'spotify', 'salida', 'bar', 'boliche', 'juego', 'libro', 'regalo', 'restaurante', 'resto', 'cafeteria', 'cumpleanos', 'entrada', 'teatro', 'recital', 'streaming', 'juguete', 'viaje', 'hotel', 'excursion', 'gimnasio', 'club'],
+  'Ropa': ['remera', 'pantalon', 'zapatilla', 'campera', 'ropa', 'zapato', 'media', 'camisa', 'calzado', 'buzo', 'vestido', 'pollera', 'ropa interior', 'bufanda', 'gorra', 'short', 'jean', 'sandalia', 'ojota'],
+  'Servicios': ['luz', 'gas', 'internet', 'celular', 'telefono', 'cable', 'abl', 'monotributo', 'impuesto', 'seguro', 'recarga', 'wifi', 'municipal', 'rentas', 'factura de luz', 'factura de gas', 'factura de agua', 'tasa', 'cuota', 'matricula', 'cooperativa', 'inmobiliario'],
+};
+
+// Palabras del texto en minúscula y sin tildes
+const palabrasDe = texto => sinTildes(texto.toLowerCase()).split(/[^a-z0-9]+/).filter(Boolean);
+
+const FRASES_CAT = [];       // [categoria, ' palabra palabra ']
+const PALABRAS_SUELTAS = []; // [categoria, palabra]
+const CONOCIDAS = new Set();
+for (const lista of Object.values(PALABRAS_CAT)) for (const kw of lista) palabrasDe(kw).forEach(w => CONOCIDAS.add(w));
+
+// Lleva el plural a la forma del diccionario: "tomates" => "tomate", "limones" => "limon", "papas" => "papa"
+function singular(w) {
+  if (w.endsWith('es') && CONOCIDAS.has(w.slice(0, -2))) return w.slice(0, -2);
+  if (w.endsWith('s') && CONOCIDAS.has(w.slice(0, -1))) return w.slice(0, -1);
+  return w;
+}
+
+for (const [cat, lista] of Object.entries(PALABRAS_CAT)) {
+  for (const kw of lista) {
+    const ws = palabrasDe(kw);
+    if (ws.length > 1) {
+      FRASES_CAT.push([cat, ' ' + ws.join(' ') + ' ']);
+      FRASES_CAT.push([cat, ' ' + ws.map(singular).join(' ') + ' ']);
+    } else if (ws.length === 1) PALABRAS_SUELTAS.push([cat, ws[0]]);
   }
+}
+
+function adivinarCategoria(texto) {
+  const ws = palabrasDe(texto).map(singular);
+  if (!ws.length) return 'Otros';
+  const flat = ' ' + ws.join(' ') + ' ';
+  for (const [cat, frase] of FRASES_CAT) if (flat.includes(frase)) return cat;
+  for (const [cat, w] of PALABRAS_SUELTAS) if (ws.includes(w)) return cat;
   return 'Otros';
 }
 

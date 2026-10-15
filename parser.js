@@ -126,7 +126,10 @@ function interpretarLocal(texto, hoy = new Date()) {
       i++;
     }
   }
-  return items.map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
+  const res = items.map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
+  // "dudosos" > 0 = quedaron palabras sin monto o un renglón sin nombre: conviene consultar a la IA
+  res.dudosos = (nombre.length ? 1 : 0) + items.filter(it => it.producto === 'Gasto').length;
+  return res;
 }
 
 // ---------- Modo compra: precios por kilo y cantidades ----------
@@ -249,6 +252,7 @@ const BORRAR_TODO = /^(?:todo|todos|toda|todas)\b|\b(?:toda|todo|completa|entera
 function interpretarPreciosLocal(texto) {
   const t = numerosADigitos(sinTildes(texto.toLowerCase()).replace(/\$/g, ' '));
   const acciones = [];
+  let dudosos = 0;
   for (let seg of t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b)\s*/)) {
     seg = seg.trim();
     if (!seg) continue;
@@ -262,14 +266,17 @@ function interpretarPreciosLocal(texto) {
     }
     seg = seg.replace(VERBOS_EDITAR, '').replace(/^(?:el |los )?precios? (?:del? (?:la |el |los |las )?)?/, '');
     const r = parseSegmento(seg);
-    if (!r) continue;
+    if (!r) { dudosos++; continue; }
     if (r.tipo === 'precio') acciones.push({ accion: 'precio', producto: r.producto, precio: r.precio, unidad: r.unidad, etiqueta: r.etiqueta || '' });
+    else if (!(r.precio > 0)) dudosos++;
     else if (r.precio > 0) {
       const explicita = r.unidad !== 'u' || r.etiqueta;
       acciones.push({ accion: 'precio', producto: r.producto, precio: r.precio, unidad: explicita ? (r.etiqueta ? 'u' : (r.unidad === 'g' ? 'kg' : r.unidad === 'ml' ? 'l' : r.unidad)) : null, etiqueta: r.etiqueta || '' });
     }
   }
-  return acciones.map(a => a.producto ? { ...a, producto: a.producto.charAt(0).toUpperCase() + a.producto.slice(1) } : a);
+  const res = acciones.map(a => a.producto ? { ...a, producto: a.producto.charAt(0).toUpperCase() + a.producto.slice(1) } : a);
+  res.dudosos = dudosos;
+  return res;
 }
 
 function interpretarCompraLocal(texto) {
@@ -283,8 +290,11 @@ function interpretarCompraLocal(texto) {
   t = t.replace(/(\d+(?:\.\d+)?) (kilos?|kgs?|litros?|lts?) (?:y )?(\d{1,3})(?![\d.])(?: (?:gramos?|grs?|gr|g)\b)?(?! ?(?:kilos?|kgs?|litros?|lts?|unidad|unidades|docenas?|el|la|por|x|cada)\b)/g,
     (m, n, u, g) => (Math.round((parseFloat(n) + parseInt(g, 10) / 1000) * 1000) / 1000) + ' ' + u);
   t = t.replace(/(\d+(?:\.\d+)?) (kilos?|kgs?|litros?) y 0\.5\b/g, (_, n, u) => (parseFloat(n) + 0.5) + ' ' + u);
-  return t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b|\bademas\b)\s*/).map(parseSegmento).filter(Boolean)
-    .map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
+  const parseados = t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b|\bademas\b)\s*/).filter(sg => sg.trim()).map(parseSegmento);
+  const res = parseados.filter(Boolean).map(it => ({ ...it, producto: it.producto.charAt(0).toUpperCase() + it.producto.slice(1) }));
+  // "dudosos" > 0 = un tramo no se entendió o quedó un nombre con números: conviene consultar a la IA
+  res.dudosos = parseados.filter(x => !x).length + res.filter(it => /\d/.test(it.producto) || it.producto.length < 2).length;
+  return res;
 }
 
 if (typeof module !== 'undefined') module.exports = { interpretarPreciosLocal, interpretarCompraLocal, interpretarLocal, adivinarCategoria, CATEGORIAS, fechaISO };

@@ -3,30 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0a0f1f">
+  <meta name="color-scheme" content="dark">
   <title>Gastos por voz</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-tab="compra">
+  <!-- Íconos de línea reutilizables -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+  </svg>
+
   <main>
     <!-- COMPRA (carrito con precios por kilo) -->
     <section id="tab-compra" class="tab active">
-      <div class="totalbar">
+      <div class="hero">
         <div><small>Total estimado</small><b id="cTotal">$0</b></div>
-        <span id="cCant" class="hint"></span>
+        <span id="cCant" class="chip"></span>
       </div>
-      <label class="lugar">📍 Lugar de la compra
+
+      <label class="lugar">
+        <span class="lab"><svg class="ic ic-s"><use href="#i-pin"/></svg> Lugar de la compra</span>
         <select id="cLugar"></select>
       </label>
-      <button id="cMic" class="mic chico" aria-label="Dictar">🎤</button>
-      <p id="cEstado" class="hint">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”, “tres bananas”).</p>
+
+      <div class="dictado">
+        <button id="cMic" class="mic chico" aria-label="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
+        <p id="cEstado" class="hint">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”, “tres bananas”).</p>
+      </div>
       <div class="row">
         <input id="cTexto" type="text" placeholder="o escribilo: 2 kilos de tomate">
         <button id="cAgregar" class="primary">Agregar</button>
       </div>
+
       <div id="cItems"></div>
+
       <label>Total que marca la caja (opcional)
         <input id="cCaja" type="number" inputmode="decimal" placeholder="Ej: 15400">
       </label>
@@ -37,10 +60,12 @@
       </div>
 
       <details id="precios">
-        <summary>Lista de precios (<span id="pCant">0</span>)</summary>
+        <summary><span>Lista de precios</span><span class="chip"><span id="pCant">0</span></span></summary>
         <h3 class="sub-titulo">Editar por voz</h3>
-        <button id="pMic" class="mic chico" aria-label="Dictar">🎤</button>
-        <p id="pEstado" class="hint">Decí, por ejemplo: “tomate a 3000 el kilo”, “cambiá la banana a 2000”, “borrá la rúcula” o “borrar toda la lista”.</p>
+        <div class="dictado">
+          <button id="pMic" class="mic chico" aria-label="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
+          <p id="pEstado" class="hint">Decí, por ejemplo: “tomate a 3000 el kilo”, “cambiá la banana a 2000”, “borrá la rúcula” o “borrar toda la lista”.</p>
+        </div>
         <div class="row">
           <input id="pTexto" type="text" placeholder="o escribilo: borrá la rúcula">
           <button id="pAplicar" class="primary">Aplicar</button>
@@ -60,23 +85,26 @@
     <!-- REGISTRAR -->
     <section id="tab-registrar" class="tab">
       <h1>Gasto directo</h1>
-      <label class="lugar">📍 Lugar
+      <label class="lugar">
+        <span class="lab"><svg class="ic ic-s"><use href="#i-pin"/></svg> Lugar</span>
         <select id="gLugar"></select>
       </label>
-      <button id="mic" class="mic" aria-label="Dictar">🎤</button>
-      <p id="micEstado" class="hint">Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.</p>
+      <div class="dictado">
+        <button id="mic" class="mic" aria-label="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
+        <p id="micEstado" class="hint">Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.</p>
+      </div>
       <textarea id="texto" rows="3" placeholder="…o escribilo acá"></textarea>
       <button id="interpretar" class="primary">Interpretar</button>
       <div id="resultado" hidden>
         <h2>Revisá antes de guardar</h2>
         <div id="items"></div>
-        <button id="agregarFila" class="ghost">+ Agregar renglón</button>
+        <button id="agregarFila" class="ghost" style="width:100%;margin-top:10px">+ Agregar renglón</button>
         <div class="row">
           <button id="descartar" class="ghost">Descartar</button>
           <button id="guardar" class="primary">Guardar</button>
         </div>
       </div>
-      <div class="hoy">Hoy: <strong id="totalHoy">$0</strong></div>
+      <div class="hoy">Gastado hoy <strong id="totalHoy">$0</strong></div>
     </section>
 
     <!-- ESTADÍSTICAS -->
@@ -89,17 +117,17 @@
         <button data-v="mes">Mensual</button>
         <button data-v="anio">Anual</button>
       </div>
-      <div id="grafico" class="grafico"></div>
+      <div class="panel"><div id="grafico" class="grafico"></div></div>
       <h2 id="catTitulo">Por categoría</h2>
-      <div id="categorias"></div>
+      <div id="categorias" class="panel"></div>
       <h2 id="lugTitulo">Por lugar</h2>
-      <div id="lugares"></div>
+      <div id="lugares" class="panel"></div>
     </section>
 
     <!-- HISTORIAL -->
     <section id="tab-historial" class="tab">
       <h1>Historial</h1>
-      <button id="hReclasificar" class="ghost" style="width:100%;margin-bottom:6px">Reclasificar los de «Otros»</button>
+      <button id="hReclasificar" class="ghost" style="width:100%">Reclasificar los de «Otros»</button>
       <p class="hint">Tocá la categoría o el lugar de un gasto para corregirlo; la app recuerda tu corrección para ese producto.</p>
       <div id="lista"></div>
     </section>
@@ -143,25 +171,25 @@
   </main>
 
   <div id="barraTotal">
-    <span>🛒 Total estimado <small id="cCantFija"></small></span>
+    <span class="bt-l"><svg class="ic ic-s"><use href="#i-cart"/></svg> Total estimado <small id="cCantFija"></small></span>
     <b id="cTotalFijo">$0</b>
   </div>
 
   <nav>
-    <button data-t="compra" class="on">🛒<span>Compra</span></button>
-    <button data-t="registrar">🎤<span>Gasto</span></button>
-    <button data-t="stats">📊<span>Estadísticas</span></button>
-    <button data-t="historial">📋<span>Historial</span></button>
-    <button data-t="ajustes">⚙️<span>Ajustes</span></button>
+    <button data-t="compra" class="on"><svg class="ic"><use href="#i-cart"/></svg><span>Compra</span></button>
+    <button data-t="registrar"><svg class="ic"><use href="#i-plus"/></svg><span>Gasto</span></button>
+    <button data-t="stats"><svg class="ic"><use href="#i-chart"/></svg><span>Estadísticas</span></button>
+    <button data-t="historial"><svg class="ic"><use href="#i-list"/></svg><span>Historial</span></button>
+    <button data-t="ajustes"><svg class="ic"><use href="#i-sliders"/></svg><span>Ajustes</span></button>
   </nav>
 
   <div id="actualizar" class="aviso" hidden>
-    <span>🔄 Hay una versión nueva de la app</span>
+    <span class="av-t"><svg class="ic ic-s"><use href="#i-refresh"/></svg> Hay una versión nueva de la app</span>
     <button id="btnActualizar">Actualizar</button>
   </div>
   <div id="okActualizado" class="aviso ok" hidden>
-    <span id="okTexto"></span>
-    <button id="okCerrar" aria-label="Cerrar">✕</button>
+    <span id="okTexto" class="av-t"></span>
+    <button id="okCerrar" aria-label="Cerrar"><svg class="ic ic-s"><use href="#i-x"/></svg></button>
   </div>
   <div id="toast" hidden></div>
   <script src="parser.js"></script>

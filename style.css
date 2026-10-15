@@ -79,8 +79,9 @@ label.lugar { margin: 0 0 14px; }
 .dictbar .seg-s button { min-height: 32px; font-size: 13px; border-radius: 11px; }
 .dict-fila { display: flex; align-items: center; gap: 8px; }
 .dict-fila[hidden] { display: none; }
-.dict-fila input { flex: 1; min-width: 0; }
-.dict-fila .primary { width: auto; margin: 0; flex: none; padding: 0 16px; }
+.dict-fila input { flex: 1; min-width: 0; order: 1; }
+.dict-fila .primary { width: auto; margin: 0; flex: none; padding: 0 16px; order: 2; }
+.dict-fila .mic { order: 3; }   /* micrófono a la derecha, al alcance del pulgar */
 .mic.mini { width: 48px; height: 48px; margin: 0; flex: none; box-shadow: 0 6px 16px rgba(34, 211, 238, .3); }
 .mic.mini .ic { width: 24px; height: 24px; }
 .mic.mini.on { animation: latido 1.1s infinite; }

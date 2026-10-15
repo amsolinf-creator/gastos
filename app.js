@@ -5,7 +5,7 @@ const LS_AJUSTES = 'gastos.ajustes.v1';
 const cargar = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
 let gastos = cargar(LS_GASTOS, []);
 let ajustes = cargar(LS_AJUSTES, {});
-ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', dolar: '', ...ajustes };
+ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', modoIA: 'rapido', dolar: '', ...ajustes };
 const persistir = () => localStorage.setItem(LS_GASTOS, JSON.stringify(gastos));
 
 // ---------- Categorías: el diccionario sugiere y tus correcciones se recuerdan ----------
@@ -108,16 +108,9 @@ configurarMic($('mic'), $('texto'), $('micEstado'), () => interpretar());
 let fuenteIA = '';
 const hayIA = () => !!(ajustes.apiKey || ajustes.groqKey);
 
-// 503 = servidores de Google saturados (temporal): se reintenta hasta 2 veces antes de pasar a la otra IA
-async function fetchGemini(url, opts) {
-  let r;
-  for (let intento = 0; intento < 3; intento++) {
-    r = await fetch(url, opts);
-    if (r.status !== 503) break;
-    await new Promise(ok => setTimeout(ok, 1200 * (intento + 1)));
-  }
-  return r;
-}
+// Tope de espera por llamada: si una IA no responde a tiempo se la descarta y se sigue con otra opción
+const TOPE_IA_MS = 6000;
+const tope = () => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(TOPE_IA_MS) : undefined);
 
 // "HTTP 429 – mensaje de la API" para saber por qué falló
 async function detalleError(r) {
@@ -133,7 +126,8 @@ async function llamarGemini(prompt, schema) {
   const modelos = [...new Set([ajustes.modelo || 'gemini-flash-latest', ...MODELOS_RESPALDO_GEMINI])];
   let ultimo = '';
   for (const m of modelos) {
-    const r = await fetchGemini(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
+      signal: tope(),
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
       body: JSON.stringify({
@@ -155,7 +149,7 @@ async function llamarGemini(prompt, schema) {
 // Si el modelo de Groq no existe en la cuenta, se consulta la lista real y se elige uno de chat
 const PREFERIDOS_GROQ = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
 async function elegirModeloGroq() {
-  const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: 'Bearer ' + ajustes.groqKey } });
+  const r = await fetch('https://api.groq.com/openai/v1/models', { signal: tope(), headers: { Authorization: 'Bearer ' + ajustes.groqKey } });
   if (!r.ok) throw new Error(await detalleError(r));
   const ids = (await r.json()).data.map(m => m.id).filter(id => !/whisper|tts|orpheus|guard|safeguard|embed|vision/i.test(id));
   return PREFERIDOS_GROQ.find(id => ids.includes(id)) || ids.find(id => /llama|gpt-oss|qwen|mixtral|gemma/i.test(id)) || null;
@@ -169,6 +163,7 @@ function describirSchema(schema) {
 
 async function llamarGroq(prompt, schema, modelo = ajustes.groqModelo || 'llama-3.3-70b-versatile', reintento = true) {
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    signal: tope(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ajustes.groqKey },
     body: JSON.stringify({
@@ -203,21 +198,51 @@ async function llamarGroq(prompt, schema, modelo = ajustes.groqModelo || 'llama-
   return arr;
 }
 
-// Prueba la IA principal y, si falla, la otra (si tiene clave). Devuelve la lista de items.
-async function llamarIA(prompt, schema) {
+// Consulta la IA principal; si falla o tarda más de 2,5 s, lanza la otra en paralelo. Gana la primera que responda bien.
+const ESPERA_RESPALDO_MS = 2500;
+function llamarIA(prompt, schema) {
   const motores = { gemini: ['Gemini', ajustes.apiKey && llamarGemini], groq: ['Groq', ajustes.groqKey && llamarGroq] };
-  const orden = ajustes.principal === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
-  const errores = [];
-  for (const m of orden) {
-    const [nombre, fn] = motores[m];
-    if (!fn) continue;
-    try {
-      const datos = await fn(prompt, schema);
-      fuenteIA = nombre + (errores.length ? ' · respaldo' : '');
-      return datos;
-    } catch (e) { errores.push(`${nombre}: ${e.message}`); }
+  const orden = (ajustes.principal === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq']).filter(m => motores[m][1]);
+  return new Promise((resolve, reject) => {
+    const errores = [];
+    let siguiente = 0, activos = 0, terminado = false, temporizador = null;
+    const lanzar = () => {
+      if (terminado || siguiente >= orden.length) return false;
+      const m = orden[siguiente++];
+      const [nombre, fn] = motores[m];
+      activos++;
+      fn(prompt, schema).then(datos => {
+        if (terminado) return;
+        terminado = true; clearTimeout(temporizador);
+        fuenteIA = nombre + (m !== orden[0] ? ' · respaldo' : '');
+        resolve(datos);
+      }).catch(e => {
+        errores.push(`${nombre}: ${e && e.name === 'TimeoutError' ? 'sin respuesta a tiempo' : (e && e.message) || e}`);
+        activos--;
+        if (!terminado && !lanzar() && activos === 0) { terminado = true; clearTimeout(temporizador); reject(new Error(errores.join('; '))); }
+      });
+      if (siguiente < orden.length) temporizador = setTimeout(lanzar, ESPERA_RESPALDO_MS);
+      return true;
+    };
+    if (!lanzar()) reject(new Error('Sin claves de IA'));
+  });
+}
+
+// "Rápido primero": las reglas locales responden al instante y la IA se consulta solo si no entendieron bien
+// (o si en Ajustes elegiste "Siempre con IA"). Si la IA falla, queda el resultado local.
+async function interpretarRapido({ texto, local, conIA, boton, estado }) {
+  const t0 = performance.now();
+  let items = local(texto);
+  let fuente = hayIA() ? 'reglas locales (rápido)' : 'reglas locales (sin IA: falta la clave en Ajustes)';
+  const confiable = items.length > 0 && !items.dudosos;
+  if (hayIA() && ((ajustes.modoIA || 'rapido') !== 'rapido' || !confiable)) {
+    boton.disabled = true;
+    estado.textContent = '✨ Consultando la IA…';
+    try { items = await conIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
+    catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; }
+    finally { boton.disabled = false; }
   }
-  throw new Error(errores.join('; '));
+  return { items, fuente: `${fuente} · ${((performance.now() - t0) / 1000).toFixed(1)} s` };
 }
 
 async function interpretarConIA(texto) {
@@ -253,17 +278,7 @@ let pendientes = [];
 async function interpretar() {
   const texto = $('texto').value.trim();
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
-  $('interpretar').disabled = true;
-  let items = [];
-  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
-  try {
-    if (hayIA()) {
-      try { items = await interpretarConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
-      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarLocal(texto); }
-    } else {
-      items = interpretarLocal(texto);
-    }
-  } finally { $('interpretar').disabled = false; }
+  const { items, fuente } = await interpretarRapido({ texto, local: interpretarLocal, conIA: interpretarConIA, boton: $('interpretar'), estado: $('micEstado') });
   $('micEstado').textContent = 'Interpretado con ' + fuente;
   if (!items.length) { toast('No encontré montos. Revisá el texto.'); return; }
   pendientes = items.map(it => ({ ...it, categoria: catsAprendidas[claveCat(it.producto)] || it.categoria }));
@@ -446,13 +461,13 @@ $('lista').addEventListener('click', e => {
 // ---------- Ajustes ----------
 function cargarAjustes() {
   $('apiKey').value = ajustes.apiKey; $('modelo').value = ajustes.modelo; $('dolar').value = ajustes.dolar;
-  $('groqKey').value = ajustes.groqKey; $('groqModelo').value = ajustes.groqModelo; $('principal').value = ajustes.principal;
+  $('groqKey').value = ajustes.groqKey; $('groqModelo').value = ajustes.groqModelo; $('principal').value = ajustes.principal; $('modoIA').value = ajustes.modoIA;
 }
 $('guardarAjustes').addEventListener('click', () => {
   ajustes = {
     apiKey: $('apiKey').value.trim(), modelo: $('modelo').value.trim() || 'gemini-flash-latest',
     groqKey: $('groqKey').value.trim(), groqModelo: $('groqModelo').value.trim() || 'llama-3.3-70b-versatile',
-    principal: $('principal').value, dolar: $('dolar').value,
+    principal: $('principal').value, modoIA: $('modoIA').value, dolar: $('dolar').value,
   };
   localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
   toast('Ajustes guardados');
@@ -599,15 +614,7 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
 async function agregarCompra() {
   const texto = $('cTexto').value.trim();
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
-  $('cAgregar').disabled = true;
-  let items = [];
-  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
-  try {
-    if (hayIA()) {
-      try { items = await interpretarCompraConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
-      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; items = interpretarCompraLocal(texto); }
-    } else items = interpretarCompraLocal(texto);
-  } finally { $('cAgregar').disabled = false; }
+  const { items, fuente } = await interpretarRapido({ texto, local: interpretarCompraLocal, conIA: interpretarCompraConIA, boton: $('cAgregar'), estado: $('cEstado') });
 
   let nPrecios = 0, nItems = 0, sinPrecio = 0;
   for (const it of items) {
@@ -805,15 +812,7 @@ function aplicarAccionesPrecios(acciones) {
 async function editarPrecios() {
   const texto = $('pTexto').value.trim();
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
-  $('pAplicar').disabled = true;
-  let acciones = [];
-  let fuente = 'reglas locales (sin IA: falta la clave en Ajustes)';
-  try {
-    if (hayIA()) {
-      try { acciones = await interpretarPreciosConIA(texto); fuente = '✨ IA (' + fuenteIA + ')'; }
-      catch (e) { fuente = 'reglas locales (la IA falló: ' + e.message + ')'; acciones = interpretarPreciosLocal(texto); }
-    } else acciones = interpretarPreciosLocal(texto);
-  } finally { $('pAplicar').disabled = false; }
+  const { items: acciones, fuente } = await interpretarRapido({ texto, local: interpretarPreciosLocal, conIA: interpretarPreciosConIA, boton: $('pAplicar'), estado: $('pEstado') });
   const r = aplicarAccionesPrecios(acciones);
   const partes = [];
   if (r.nuevos.length) partes.push('agregado: ' + r.nuevos.join(', '));

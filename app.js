@@ -532,32 +532,56 @@ const baseDe = u => (u === 'g' ? 'kg' : u === 'ml' ? 'l' : u);
 const factor = u => (u === 'g' || u === 'ml' ? 1 / 1000 : 1);
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-// Claves de comparación: "Tomates" y "tomate" son el mismo producto
-const claves = s => {
-  const k = sinTildes(s.toLowerCase()).trim().replace(/\s+/g, ' ').replace(/s$/, '');
-  return [k, k.replace(/e$/, '')];
-};
-const palabras = s => sinTildes(s.toLowerCase()).split(/\s+/).filter(Boolean).map(w => claves(w)[1]);
+// ---------- Coincidencia de nombres por sonido ----------
+// El reconocimiento de voz escribe "champú" aunque en la lista esté "Shampoo": se comparan por cómo suenan.
+const SINONIMOS_BRUTO = { fresa: 'frutilla', melocoton: 'durazno', aguacate: 'palta', platano: 'banana', maiz: 'choclo', pina: 'anana', guisante: 'arveja', frijol: 'poroto', calabacin: 'zapallito', patata: 'papa', zumo: 'jugo', refresco: 'gaseosa', champu: 'shampoo', acondicionador: 'enjuague', mayonesa: 'mayo' };
+
+function sonido(w) {
+  w = sinTildes(w.toLowerCase()).replace(/[^a-z0-9]/g, '');
+  w = w.replace(/sh|ch/g, '#').replace(/ph/g, 'f').replace(/h/g, '')
+    .replace(/ll/g, 'y').replace(/qu/g, 'k').replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k').replace(/z/g, 's')
+    .replace(/v/g, 'b').replace(/w/g, 'u').replace(/oo/g, 'u').replace(/ee/g, 'i').replace(/(.)\1+/g, '$1');
+  return w.length > 3 ? w.replace(/s$/, '') : w;
+}
+const SINONIMOS = Object.fromEntries(Object.entries(SINONIMOS_BRUTO).map(([a, b]) => [sonido(a), sonido(b)]));
+const canon = w => { const s = sonido(w); return SINONIMOS[s] || s; };
+
+function distancia(a, b) {   // Levenshtein
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+// Misma palabra: igual sonido, o (palabras largas) una letra de diferencia por error de tipeo
+const mismaPalabra = (a, b) => a === b || (a.length >= 6 && b.length >= 6 && distancia(a, b) <= 1);
+const palabrasCanon = s => sinTildes(s.toLowerCase()).split(/[^a-z0-9]+/).filter(Boolean).map(canon);
+
+// Cuánto se parecen dos nombres: 1 = iguales; 0 = sin relación. Un nombre contenido en el otro también cuenta
+// ("champú" ↔ "shampoo sedal"), pero puntúa menos que uno idéntico.
+function parecido(a, b) {
+  const wa = palabrasCanon(a), wb = palabrasCanon(b);
+  if (!wa.length || !wb.length) return 0;
+  const ma = wa.filter(x => wb.some(y => mismaPalabra(x, y))).length;
+  const mb = wb.filter(y => wa.some(x => mismaPalabra(x, y))).length;
+  if (ma !== wa.length && mb !== wb.length) return 0;   // ninguno contiene al otro
+  return (ma + mb) / (wa.length + wb.length);
+}
 
 function buscarPrecio(nombre) {
-  const ck = claves(nombre);
-  const exacto = precios.find(p => claves(p.nombre).some(k => ck.includes(k)));
-  if (exacto) return exacto;
-  const pw = palabras(nombre);
-  let mejor = null;
+  let mejor = null, mejorP = 0;
   for (const p of precios) {
-    const ew = palabras(p.nombre);
-    if (ew.every(w => pw.includes(w)) || pw.every(w => ew.includes(w))) {
-      if (!mejor || ew.length > palabras(mejor.nombre).length) mejor = p;
-    }
+    const sc = parecido(nombre, p.nombre);
+    if (sc > mejorP) { mejor = p; mejorP = sc; }
   }
   return mejor;
 }
+const buscarExacto = nombre => precios.find(p => parecido(nombre, p.nombre) === 1);
 
 // etiqueta: presentación que se muestra en la lista ("atado", "bolsa"); solo aplica a precios por unidad
 function setPrecio(nombre, precio, unidad, etiqueta = '') {
   const et = unidad === 'u' ? etiqueta : '';
-  const ex = precios.find(p => claves(p.nombre).some(k => claves(nombre).includes(k)));
+  const ex = buscarExacto(nombre);
   if (ex) { ex.precio = precio; ex.unidad = unidad; ex.etiqueta = et; }
   else precios.push({ nombre: cap(nombre.trim()), precio, unidad, etiqueta: et });
   precios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -625,13 +649,14 @@ async function agregarCompra() {
     }
     let precio = it.precio > 0 ? it.precio : 0;
     let up = baseDe(it.unidad);
+    let nombre = cap(it.producto.trim());
     if (precio) {
       if (it.guardarPrecio) { setPrecio(it.producto, precio, up, it.etiqueta); nPrecios++; }
     } else {
       const ex = buscarPrecio(it.producto);
-      if (ex) { precio = ex.precio; up = ex.unidad; }
+      if (ex) { precio = ex.precio; up = ex.unidad; nombre = ex.nombre; }   // usa el nombre de tu lista ("Shampoo sedal")
     }
-    const nuevo = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: cap(it.producto.trim()), cantidad: it.cantidad || 1, unidad: it.unidad, precio, up };
+    const nuevo = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: nombre, cantidad: it.cantidad || 1, unidad: it.unidad, precio, up };
     carrito.push(nuevo);
     nItems++;
     if (subtotal(nuevo) === null) sinPrecio++;
@@ -748,7 +773,6 @@ $('pLista').addEventListener('click', e => {
   precios.splice(+i, 1); guardarPrecios(); renderPrecios();
 });
 // ----- Editar la lista por voz o texto: cambiar precios, borrar productos, borrar todo -----
-const buscarExacto = nombre => precios.find(p => claves(p.nombre).some(k => claves(nombre).includes(k)));
 
 async function interpretarPreciosConIA(texto) {
   const conocidos = precios.map(p => `${p.nombre} (${p.precio}/${p.etiqueta || p.unidad})`).join(', ') || '(ninguno)';

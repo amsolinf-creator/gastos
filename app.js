@@ -847,6 +847,16 @@ async function editarPrecios() {
   $('pEstado').textContent = `${partes.join(' · ') || 'No entendí nada'} — interpretado con ${fuente}`;
   if (partes.length) $('pTexto').value = '';
 }
+// Barra de dictado única: el selector manda lo dictado al carrito o a la lista de precios
+function setModoDict(m) {
+  $('dictCarrito').hidden = m !== 'carrito'; $('dictPrecios').hidden = m !== 'precios';
+  $('cEstado').hidden = m !== 'carrito'; $('pEstado').hidden = m !== 'precios';
+  document.querySelectorAll('#modoDict button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+}
+$('modoDict').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) setModoDict(b.dataset.m); });
+// Tocar el mensaje de estado lo expande o lo recoge (los errores pueden ser largos)
+document.querySelectorAll('.estado').forEach(el => el.addEventListener('click', () => el.classList.toggle('abierto')));
+
 $('pAplicar').addEventListener('click', editarPrecios);
 $('pTexto').addEventListener('keydown', e => { if (e.key === 'Enter') editarPrecios(); });
 configurarMic($('pMic'), $('pTexto'), $('pEstado'), () => editarPrecios());

@@ -8,6 +8,51 @@ let ajustes = cargar(LS_AJUSTES, {});
 ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', dolar: '', ...ajustes };
 const persistir = () => localStorage.setItem(LS_GASTOS, JSON.stringify(gastos));
 
+// ---------- Categorías: el diccionario sugiere y tus correcciones se recuerdan ----------
+const LS_CATS = 'gastos.categorias.v1';
+let catsAprendidas = cargar(LS_CATS, {});   // { "brocoli": "Verdulería" }
+// Singular/plural dan la misma clave, también para palabras que no están en el diccionario
+const claveCat = nombre => palabrasDe(nombre).map(w => { const s = singular(w); return s !== w ? s : w.replace(/([aeiou])s$/, '$1'); }).join(' ');
+const categoriaDe = producto => catsAprendidas[claveCat(producto)] || adivinarCategoria(producto);
+function aprenderCategoria(producto, cat) {
+  const k = claveCat(producto);
+  if (!k) return;
+  if (cat === adivinarCategoria(producto)) delete catsAprendidas[k]; else catsAprendidas[k] = cat;
+  localStorage.setItem(LS_CATS, JSON.stringify(catsAprendidas));
+}
+
+// ---------- Lugar de la compra ----------
+const LS_LUGARES = 'gastos.lugares.v1';
+const LS_LUGAR = 'gastos.lugar.v1';
+const LUGARES_BASE = ['Supermercado', 'Verdulería', 'Almacén', 'Carnicería', 'Panadería', 'Farmacia', 'Kiosco', 'Feria', 'Mercado', 'Online'];
+let lugares = cargar(LS_LUGARES, LUGARES_BASE);
+let lugarActual = cargar(LS_LUGAR, '');
+
+const opcionesLugar = sel => {
+  const lista = sel && !lugares.includes(sel) ? [...lugares, sel] : lugares;
+  return '<option value="">Sin especificar</option>' + lista.map(l => `<option${l === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
+};
+function renderLugares() {
+  for (const id of ['cLugar', 'gLugar']) {
+    $(id).innerHTML = opcionesLugar(lugarActual) + '<option value="__nuevo__">➕ Agregar lugar…</option>';
+    $(id).value = lugarActual;
+  }
+}
+function cambiarLugar(valor) {
+  if (valor === '__nuevo__') {
+    const n = (prompt('Nombre del lugar (ej: Verdulería de la esquina)') || '').trim();
+    if (n) {
+      const ya = lugares.find(l => l.toLowerCase() === n.toLowerCase());
+      lugarActual = ya || n.charAt(0).toUpperCase() + n.slice(1);
+      if (!ya) lugares.push(lugarActual);
+      localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
+    }
+  } else lugarActual = valor;
+  try { localStorage.setItem(LS_LUGAR, JSON.stringify(lugarActual)); } catch {}
+  renderLugares();
+}
+document.addEventListener('change', e => { if (e.target.id === 'cLugar' || e.target.id === 'gLugar') cambiarLugar(e.target.value); });
+
 const $ = id => document.getElementById(id);
 const peso = n => '$' + Math.round(n).toLocaleString('es-AR');
 const hoyISO = () => fechaISO(new Date());
@@ -218,7 +263,7 @@ async function interpretar() {
   } finally { $('interpretar').disabled = false; }
   $('micEstado').textContent = 'Interpretado con ' + fuente;
   if (!items.length) { toast('No encontré montos. Revisá el texto.'); return; }
-  pendientes = items;
+  pendientes = items.map(it => ({ ...it, categoria: catsAprendidas[claveCat(it.producto)] || it.categoria }));
   renderPendientes();
 }
 $('interpretar').addEventListener('click', interpretar);
@@ -239,6 +284,7 @@ $('items').addEventListener('input', e => {
   const fila = e.target.closest('.item'); if (!fila) return;
   const k = e.target.dataset.k;
   pendientes[+fila.dataset.i][k] = k === 'monto' ? Number(e.target.value) : e.target.value;
+  if (k === 'categoria') pendientes[+fila.dataset.i].catEditada = true;
 });
 $('items').addEventListener('click', e => {
   const q = e.target.dataset.q; if (q === undefined) return;
@@ -259,10 +305,13 @@ $('guardar').addEventListener('click', () => {
   const validos = pendientes.filter(p => p.producto.trim() && p.monto > 0 && p.fecha);
   if (!validos.length) { toast('Completá producto y monto'); return; }
   const dolar = Number(ajustes.dolar) || null;
-  validos.forEach(p => gastos.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, dolar,
-  }));
+  validos.forEach(p => {
+    if (p.catEditada) aprenderCategoria(p.producto, p.categoria);
+    gastos.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarActual, dolar,
+    });
+  });
   persistir(); limpiarRegistro(); renderHoy();
   toast(`${validos.length} gasto(s) guardado(s)`);
 });
@@ -333,6 +382,16 @@ function renderStats() {
   $('categorias').innerHTML = filas.length
     ? filas.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
     : '<p class="hint">Sin gastos en este período.</p>';
+
+  $('lugTitulo').textContent = 'Por lugar — ' + nombres[vista];
+  const porLugar = {};
+  gastos.filter(g => { const f = parseFecha(g.fecha); return f >= p.desde && f < p.hasta; })
+    .forEach(g => { const l = g.lugar || 'Sin lugar'; porLugar[l] = (porLugar[l] || 0) + g.monto; });
+  const filasL = Object.entries(porLugar).sort((a, b) => b[1] - a[1]);
+  const totalL = filasL.reduce((s, [, v]) => s + v, 0) || 1;
+  $('lugares').innerHTML = filasL.length
+    ? filasL.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalL * 100)}%</span></div><div class="pista"><i style="width:${v / totalL * 100}%"></i></div></div>`).join('')
+    : '<p class="hint">Sin gastos en este período.</p>';
 }
 
 // ---------- Historial ----------
@@ -343,8 +402,35 @@ function renderHistorial() {
   orden.forEach(g => (porDia[g.fecha] = porDia[g.fecha] || []).push(g));
   $('lista').innerHTML = Object.entries(porDia).map(([f, gs]) => `
     <div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((s, g) => s + g.monto, 0))}</span></div>
-    ${gs.map(g => `<div class="gasto"><div>${esc(g.producto)}<small>${esc(g.categoria)}${g.dolar ? ' · USD ' + (g.monto / g.dolar).toFixed(2) : ''}</small></div><div><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">✕</button></div></div>`).join('')}`).join('');
+    ${gs.map(g => `<div class="gasto"><div>${esc(g.producto)}
+      <div class="metas">
+        <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${CATEGORIAS.map(c => `<option${c === g.categoria ? ' selected' : ''}>${c}</option>`).join('')}</select>
+        <select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
+      </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
+      <div><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">✕</button></div></div>`).join('')}`).join('');
 }
+// Corregir categoría o lugar de un gasto ya guardado (la categoría corregida se recuerda para el futuro)
+$('lista').addEventListener('change', e => {
+  const id = e.target.dataset.gid; if (!id) return;
+  const g = gastos.find(x => x.id === id); if (!g) return;
+  g[e.target.dataset.c] = e.target.value;
+  if (e.target.dataset.c === 'categoria') aprenderCategoria(g.producto, g.categoria);
+  persistir(); toast('Cambio guardado');
+});
+function reclasificarOtros() {
+  let n = 0;
+  gastos.forEach(g => {
+    if (g.categoria !== 'Otros') return;
+    const c = categoriaDe(g.producto);
+    if (c !== 'Otros') { g.categoria = c; n++; }
+  });
+  if (n) persistir();
+  return n;
+}
+$('hReclasificar').addEventListener('click', () => {
+  const n = reclasificarOtros(); renderHistorial();
+  toast(n ? `${n} gasto(s) reclasificado(s)` : 'No hay gastos en «Otros» que pueda reclasificar');
+});
 $('lista').addEventListener('click', e => {
   const id = e.target.dataset.borrar; if (!id) return;
   gastos = gastos.filter(g => g.id !== id); persistir(); renderHistorial(); toast('Gasto borrado');
@@ -621,7 +707,7 @@ $('cGuardar').addEventListener('click', () => {
   const fecha = hoyISO();
   validos.forEach(it => gastos.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: it.producto, monto: Math.round(subtotal(it) * 100) / 100, categoria: adivinarCategoria(it.producto), fecha, dolar,
+    producto: it.producto, monto: Math.round(subtotal(it) * 100) / 100, categoria: categoriaDe(it.producto), fecha, lugar: lugarActual, dolar,
   }));
   persistir();
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
@@ -762,6 +848,15 @@ try { screen.orientation.lock('portrait').catch(() => {}); } catch {}
 
 // ---------- Inicio ----------
 cargarAjustes();
+renderLugares();
+// Una sola vez: con el diccionario ampliado, reclasifica lo que había quedado en «Otros»
+try {
+  if (localStorage.getItem('gastos.cats.version') !== '2') {
+    const n = reclasificarOtros();
+    localStorage.setItem('gastos.cats.version', '2');
+    if (n) setTimeout(() => toast(`${n} gasto(s) de «Otros» se reclasificaron`), 800);
+  }
+} catch {}
 renderHoy();
 renderCompra();
 // La barra de total se apoya justo sobre el menú, sea cual sea su alto en cada celular

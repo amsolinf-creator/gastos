@@ -17,6 +17,9 @@
         <div><small>Total estimado</small><b id="cTotal">$0</b></div>
         <span id="cCant" class="hint"></span>
       </div>
+      <label class="lugar">📍 Lugar de la compra
+        <select id="cLugar"></select>
+      </label>
       <button id="cMic" class="mic chico" aria-label="Dictar">🎤</button>
       <p id="cEstado" class="hint">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”, “tres bananas”).</p>
       <div class="row">
@@ -57,6 +60,9 @@
     <!-- REGISTRAR -->
     <section id="tab-registrar" class="tab">
       <h1>Gasto directo</h1>
+      <label class="lugar">📍 Lugar
+        <select id="gLugar"></select>
+      </label>
       <button id="mic" class="mic" aria-label="Dictar">🎤</button>
       <p id="micEstado" class="hint">Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.</p>
       <textarea id="texto" rows="3" placeholder="…o escribilo acá"></textarea>
@@ -86,11 +92,15 @@
       <div id="grafico" class="grafico"></div>
       <h2 id="catTitulo">Por categoría</h2>
       <div id="categorias"></div>
+      <h2 id="lugTitulo">Por lugar</h2>
+      <div id="lugares"></div>
     </section>
 
     <!-- HISTORIAL -->
     <section id="tab-historial" class="tab">
       <h1>Historial</h1>
+      <button id="hReclasificar" class="ghost" style="width:100%;margin-bottom:6px">Reclasificar los de «Otros»</button>
+      <p class="hint">Tocá la categoría o el lugar de un gasto para corregirlo; la app recuerda tu corrección para ese producto.</p>
       <div id="lista"></div>
     </section>
 

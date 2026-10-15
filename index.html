@@ -39,13 +39,23 @@
         <select id="cLugar"></select>
       </label>
 
-      <div class="dictado">
-        <button id="cMic" class="mic chico" aria-label="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
-        <p id="cEstado" class="hint">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”, “tres bananas”).</p>
-      </div>
-      <div class="row">
-        <input id="cTexto" type="text" placeholder="o escribilo: 2 kilos de tomate">
-        <button id="cAgregar" class="primary">Agregar</button>
+      <div class="dictbar" id="dictbar">
+        <div class="seg seg-s" id="modoDict">
+          <button data-m="carrito" class="on">Carrito</button>
+          <button data-m="precios">Lista de precios</button>
+        </div>
+        <div class="dict-fila" id="dictCarrito">
+          <button id="cMic" class="mic mini" aria-label="Dictar al carrito"><svg class="ic"><use href="#i-mic"/></svg></button>
+          <input id="cTexto" type="text" placeholder="2 kilos de tomate">
+          <button id="cAgregar" class="primary">Agregar</button>
+        </div>
+        <div class="dict-fila" id="dictPrecios" hidden>
+          <button id="pMic" class="mic mini" aria-label="Dictar a la lista de precios"><svg class="ic"><use href="#i-mic"/></svg></button>
+          <input id="pTexto" type="text" placeholder="tomate a 3000 el kilo">
+          <button id="pAplicar" class="primary">Aplicar</button>
+        </div>
+        <p id="cEstado" class="hint estado">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”).</p>
+        <p id="pEstado" class="hint estado" hidden>Cambiá precios o borrá productos: “tomate a 3000 el kilo”, “borrá la rúcula”, “borrar toda la lista”.</p>
       </div>
 
       <div id="cItems"></div>
@@ -61,15 +71,6 @@
 
       <details id="precios">
         <summary><span>Lista de precios</span><span class="chip"><span id="pCant">0</span></span></summary>
-        <h3 class="sub-titulo">Editar por voz</h3>
-        <div class="dictado">
-          <button id="pMic" class="mic chico" aria-label="Dictar"><svg class="ic"><use href="#i-mic"/></svg></button>
-          <p id="pEstado" class="hint">Decí, por ejemplo: “tomate a 3000 el kilo”, “cambiá la banana a 2000”, “borrá la rúcula” o “borrar toda la lista”.</p>
-        </div>
-        <div class="row">
-          <input id="pTexto" type="text" placeholder="o escribilo: borrá la rúcula">
-          <button id="pAplicar" class="primary">Aplicar</button>
-        </div>
         <h3 class="sub-titulo">Agregar a mano</h3>
         <div class="item pform">
           <input id="pNom" type="text" placeholder="Producto (ej: Tomate)" class="full">

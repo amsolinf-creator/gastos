@@ -13,7 +13,39 @@ const LS_CATS = 'gastos.categorias.v1';
 let catsAprendidas = cargar(LS_CATS, {});   // { "brocoli": "Verdulería" }
 // Singular/plural dan la misma clave, también para palabras que no están en el diccionario
 const claveCat = nombre => palabrasDe(nombre).map(w => { const s = singular(w); return s !== w ? s : w.replace(/([aeiou])s$/, '$1'); }).join(' ');
-const categoriaDe = producto => catsAprendidas[claveCat(producto)] || adivinarCategoria(producto);
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Rubro dictado: "pinturería" => "Pinturería", "ferretería" => "Ferretería" (palabras terminadas en -ería)
+const NO_RUBRO = new Set(['materia', 'miseria', 'histeria', 'arteria', 'bacteria', 'criteria', 'feria']);
+function categoriaRubro(producto) {
+  const m = sinTildes(producto.toLowerCase()).match(/\b([a-z]{3,}eria)\b/);
+  if (!m || NO_RUBRO.has(m[1])) return null;
+  return capital(m[1].replace(/eria$/, 'ería'));
+}
+
+// Lo que se dictó sirve de categoría cuando no hay una conocida: "pintura" => "Pintura"
+function categoriaLibre(producto) {
+  const t = producto.trim().replace(/\s+/g, ' ');
+  return t && t.split(' ').length <= 3 && t.length <= 28 ? capital(t.toLowerCase()) : null;
+}
+
+// Orden: lo que corregiste vos > rubro dictado (-ería) > categoría sugerida > diccionario > el nombre dictado > Otros
+function categoriaDe(producto, sugerida, libre = true) {
+  return catsAprendidas[claveCat(producto)]
+    || categoriaRubro(producto)
+    || (sugerida && sugerida !== 'Otros' ? sugerida : null)
+    || (adivinarCategoria(producto) !== 'Otros' ? adivinarCategoria(producto) : null)
+    || (libre ? categoriaLibre(producto) : null)
+    || 'Otros';
+}
+
+// Categorías para los selectores: las base, más todas las que usaste alguna vez
+const todasCategorias = (actual = '') => [...new Set([...CATEGORIAS.filter(c => c !== 'Otros'), ...gastos.map(g => g.categoria).filter(Boolean), 'Otros', actual].filter(Boolean))];
+const opcionesCategoria = actual => todasCategorias(actual).map(c => `<option${c === actual ? ' selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__nueva__">➕ Nueva categoría…</option>';
+function pedirCategoria() {
+  const n = (prompt('Nombre de la categoría (ej: Ferretería)') || '').trim();
+  return n ? capital(n) : '';
+}
 function aprenderCategoria(producto, cat) {
   const k = claveCat(producto);
   if (!k) return;
@@ -56,7 +88,12 @@ document.addEventListener('change', e => { if (e.target.id === 'cLugar' || e.tar
 const $ = id => document.getElementById(id);
 const ICX = '<svg class="ic ic-s"><use href="#i-x"/></svg>';
 const CAT_COLOR = { 'Comida': '#f59e0b', 'Verdulería': '#34d399', 'Carnicería': '#fb7185', 'Limpieza': '#22d3ee', 'Transporte': '#a78bfa', 'Salud': '#f472b6', 'Hogar': '#fbbf24', 'Ocio': '#818cf8', 'Ropa': '#2dd4bf', 'Servicios': '#60a5fa', 'Otros': '#94a3b8' };
-const colorCat = c => CAT_COLOR[c] || '#94a3b8';
+// Categorías sin color fijo (las que creás vos) reciben uno estable según su nombre
+const colorCat = c => {
+  if (CAT_COLOR[c]) return CAT_COLOR[c];
+  let h = 0; for (const ch of String(c)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 70% 62%)`;
+};
 const peso = n => '$' + Math.round(n).toLocaleString('es-AR');
 const hoyISO = () => fechaISO(new Date());
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -249,7 +286,7 @@ async function interpretarConIA(texto) {
   const hoy = hoyISO();
   const prompt = `Extraé los gastos de este dictado en español rioplatense (Argentina). Hoy es ${hoy}.
 "lucas"/"luca" = miles de pesos ("dos lucas" = 2000). Si no dice fecha, usá hoy; "ayer" = el día anterior.
-Cada gasto: producto (corto, con mayúscula inicial), monto (número en pesos), categoria (una de: ${CATEGORIAS.join(', ')}), fecha (YYYY-MM-DD).
+Cada gasto: producto (corto, con mayúscula inicial), monto (número en pesos), categoria (usá una de: ${CATEGORIAS.filter(c => c !== 'Otros').join(', ')} si encaja; si el gasto nombra un comercio o rubro, usá ese nombre como categoría, por ejemplo "Pinturería" o "Ferretería"; solo usá Otros si no hay ninguna pista), fecha (YYYY-MM-DD).
 Dictado: """${texto}"""`;
   const schema = {
     type: 'ARRAY',
@@ -257,7 +294,7 @@ Dictado: """${texto}"""`;
       type: 'OBJECT',
       properties: {
         producto: { type: 'STRING' }, monto: { type: 'NUMBER' },
-        categoria: { type: 'STRING', enum: CATEGORIAS }, fecha: { type: 'STRING' },
+        categoria: { type: 'STRING' }, fecha: { type: 'STRING' },
       },
       required: ['producto', 'monto', 'categoria', 'fecha'],
     },
@@ -268,7 +305,7 @@ Dictado: """${texto}"""`;
     .map(x => ({
       producto: String(x.producto || 'Gasto'),
       monto: Number(x.monto),
-      categoria: CATEGORIAS.includes(x.categoria) ? x.categoria : 'Otros',
+      categoria: String(x.categoria || '').trim().slice(0, 30) || 'Otros',
       fecha: /^\d{4}-\d{2}-\d{2}$/.test(x.fecha) ? x.fecha : hoy,
     }));
 }
@@ -281,7 +318,7 @@ async function interpretar() {
   const { items, fuente } = await interpretarRapido({ texto, local: interpretarLocal, conIA: interpretarConIA, boton: $('interpretar'), estado: $('micEstado') });
   $('micEstado').textContent = 'Interpretado con ' + fuente;
   if (!items.length) { toast('No encontré montos. Revisá el texto.'); return; }
-  pendientes = items.map(it => ({ ...it, categoria: catsAprendidas[claveCat(it.producto)] || it.categoria }));
+  pendientes = items.map(it => ({ ...it, categoria: categoriaDe(it.producto, it.categoria) }));
   renderPendientes();
 }
 $('interpretar').addEventListener('click', interpretar);
@@ -292,7 +329,7 @@ function renderPendientes() {
     <div class="item" data-i="${i}">
       <button class="quitar" data-q="${i}" aria-label="Quitar">${ICX}</button>
       <input class="nom full" data-k="producto" value="${esc(p.producto)}" aria-label="Producto">
-      <select data-k="categoria">${CATEGORIAS.map(c => `<option${c === p.categoria ? ' selected' : ''}>${c}</option>`).join('')}</select>
+      <select data-k="categoria">${opcionesCategoria(p.categoria)}</select>
       <input data-k="monto" type="number" inputmode="decimal" value="${p.monto}" aria-label="Monto">
       <input class="full" data-k="fecha" type="date" value="${p.fecha}" aria-label="Fecha">
     </div>`).join('');
@@ -303,6 +340,13 @@ $('items').addEventListener('input', e => {
   const k = e.target.dataset.k;
   pendientes[+fila.dataset.i][k] = k === 'monto' ? Number(e.target.value) : e.target.value;
   if (k === 'categoria') pendientes[+fila.dataset.i].catEditada = true;
+});
+// "➕ Nueva categoría…": se pide el nombre y queda disponible en todos los selectores
+$('items').addEventListener('change', e => {
+  if (e.target.dataset.k !== 'categoria' || e.target.value !== '__nueva__') return;
+  const fila = e.target.closest('.item'); const p = pendientes[+fila.dataset.i];
+  p.categoria = pedirCategoria() || p.categoria; p.catEditada = true;
+  renderPendientes();
 });
 $('items').addEventListener('click', e => {
   const b = e.target.closest('[data-q]'); if (!b) return;
@@ -425,7 +469,7 @@ function renderHistorial() {
     <div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((s, g) => s + g.monto, 0))}</span></div>
     ${gs.map(g => `<div class="gasto"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
       <div class="metas">
-        <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${CATEGORIAS.map(c => `<option${c === g.categoria ? ' selected' : ''}>${c}</option>`).join('')}</select>
+        <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
         <select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
       </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
       <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`).join('')}`).join('');
@@ -434,15 +478,17 @@ function renderHistorial() {
 $('lista').addEventListener('change', e => {
   const id = e.target.dataset.gid; if (!id) return;
   const g = gastos.find(x => x.id === id); if (!g) return;
-  g[e.target.dataset.c] = e.target.value;
+  let valor = e.target.value;
+  if (valor === '__nueva__') valor = pedirCategoria() || g.categoria;   // "➕ Nueva categoría…"
+  g[e.target.dataset.c] = valor;
   if (e.target.dataset.c === 'categoria') aprenderCategoria(g.producto, g.categoria);
-  persistir(); toast('Cambio guardado');
+  persistir(); renderHistorial(); toast('Cambio guardado');
 });
 function reclasificarOtros() {
   let n = 0;
   gastos.forEach(g => {
     if (g.categoria !== 'Otros') return;
-    const c = categoriaDe(g.producto);
+    const c = categoriaDe(g.producto, null, false);
     if (c !== 'Otros') { g.categoria = c; n++; }
   });
   if (n) persistir();

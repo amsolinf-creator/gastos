@@ -599,7 +599,8 @@ const totalCarrito = () => carrito.reduce((s, it) => s + (subtotal(it) || 0), 0)
 async function interpretarCompraConIA(texto) {
   const conocidos = precios.map(p => p.nombre).join(', ') || '(ninguno)';
   const prompt = `Interpretá este dictado de una compra (verdulería/supermercado, español rioplatense). Puede mezclar dos tipos de frases:
-- tipo "precio": declara cuánto cuesta algo ("tomate a 2500 el kilo"). Campos: producto, precio (número), unidad (kg, l o u; "la docena" => dividí el precio por 12 y usá u).
+REGLA DE UNIDADES: solo usá kg, g, l o ml si el dictado dice explícitamente kilo, kilogramo, gramos, litro o mililitros (o "medio kilo", "kilo y medio", etc.). Si no lo dice, la unidad es siempre "u" (unidades).
+- tipo "precio": declara cuánto cuesta algo ("tomate a 2500 el kilo"). Campos: producto, precio (número), unidad (kg, l o u; "la docena" => dividí el precio por 12 y usá u; si no dice "el kilo" ni "el litro", usá u).
 - tipo "compra": lo que se pone en el carrito ("dos kilos de tomate", "medio kilo", "300 gramos", "tres bananas"). Campos: producto, cantidad (número), unidad (kg, g, l, ml o u), precio (precio por kg/l/unidad SOLO si lo dice en la misma frase; si no, 0), monto (importe fijo SOLO si dice un precio sin cantidad ni "el kilo", como "pan 800" o "rúcula atado dos mil pesos"; si no, 0).
 Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" ("atado") y dejalo fuera de "producto" ("Rúcula"). Si no hay envase, etiqueta es "".
 "lucas" = miles ("dos lucas" = 2000). "medio kilo" = 0.5 kg. "kilo y medio" = 1.5 kg.
@@ -629,7 +630,7 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
     if (x.tipo === 'precio') return { tipo: 'precio', producto: x.producto, precio: x.precio, unidad: baseDe(x.unidad), etiqueta };
     if (x.monto > 0 && !(x.precio > 0)) {
       // precio sin cantidad: se guarda por la unidad más probable (atado => unidad, tomate => kilo)
-      return { tipo: 'compra', producto: x.producto, cantidad: 1, unidad: etiqueta ? 'u' : sugerirUnidad(x.producto), precio: x.monto, guardarPrecio: true, etiqueta };
+      return { tipo: 'compra', producto: x.producto, cantidad: 1, unidad: 'u', precio: x.monto, guardarPrecio: true, etiqueta };
     }
     return { tipo: 'compra', producto: x.producto, cantidad: x.cantidad || 1, unidad: x.unidad, precio: x.precio, guardarPrecio: x.precio > 0, etiqueta };
   });
@@ -781,7 +782,7 @@ async function interpretarPreciosConIA(texto) {
 - "borrar": quitar un producto de la lista. Campo: producto.
 - "borrar_todo": vaciar toda la lista ("borrar toda la lista", "eliminar todo").
 Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" y dejalo fuera de "producto".
-"lucas" = miles ("dos lucas" = 2000). Si no dice la unidad de un precio, usá la que ya tiene el producto en la lista, o kg si es nuevo y se vende por peso.
+"lucas" = miles ("dos lucas" = 2000). Solo usá kg o l si el dictado dice explícitamente kilo o litro. Si no dice la unidad de un precio, usá la que ya tiene el producto en la lista, o "u" (unidad) si es nuevo.
 Productos actuales (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
 Para campos que no aplican usá 0 o "". Dictado: """${texto}"""`;
   const schema = {
@@ -824,7 +825,7 @@ function aplicarAccionesPrecios(acciones) {
       r.borrados.push(ex.nombre);
     } else if (a.precio > 0) {
       const ex = buscarExacto(a.producto);
-      const unidad = a.unidad || (ex && ex.unidad) || (a.etiqueta ? 'u' : sugerirUnidad(a.producto));
+      const unidad = a.unidad || (ex && ex.unidad) || 'u';   // sin "kilo"/"litro" dicho: el producto conserva su unidad, y si es nuevo va por unidad
       setPrecio(a.producto, a.precio, unidad, a.etiqueta || (ex && unidad === 'u' ? ex.etiqueta : ''));
       (ex ? r.cambiados : r.nuevos).push(cap(a.producto));
     }

@@ -85,8 +85,15 @@ function fechaISO(d) {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
+// El dictado a veces pega las palabras ("cienmil", "diezmil") o mezcla cifras y letras ("100mil"):
+// se separan para que "cien mil" valga 100000 y no 100.
+function separarNumeros(t) {
+  return t.replace(/\b([a-z]+?)(mil|millon|millones)\b/g, (m, p, q) => (esPalabraNum(p) ? p + ' ' + q : m))
+    .replace(/(\d)(mil|millon|millones)\b/g, '$1 $2');
+}
+
 function interpretarLocal(texto, hoy = new Date()) {
-  let t = sinTildes(texto.toLowerCase()).replace(/[$]/g, ' ').replace(/[;:]/g, ',');
+  let t = separarNumeros(sinTildes(texto.toLowerCase())).replace(/[$]/g, ' ').replace(/[;:]/g, ',');
   let fecha = new Date(hoy);
   if (/\banteayer\b/.test(t)) { fecha.setDate(fecha.getDate() - 2); t = t.replace(/\banteayer\b/, ' '); }
   else if (/\bayer\b/.test(t)) { fecha.setDate(fecha.getDate() - 1); t = t.replace(/\bayer\b/, ' '); }
@@ -109,9 +116,8 @@ function interpretarLocal(texto, hoy = new Date()) {
         else if (x === 'y' && corrida.length && j + 1 < tokens.length && esPalabraNum(tokens[j + 1]) && esPalabraNum(corrida[corrida.length - 1])) { corrida.push(x); j++; }
         else break;
       }
-      let monto = corrida.every(esDigitos) && corrida.length === 1 ? parseDigitos(corrida[0])
-        : corrida.every(x => esPalabraNum(x) || x === 'y') ? parsePalabrasNum(corrida)
-        : parseDigitos(corrida.find(esDigitos));
+      // solo cifras: la primera; palabras o mezcla ("100 mil", "dos mil"): se calcula todo junto
+      let monto = corrida.every(esDigitos) ? parseDigitos(corrida[0]) : parsePalabrasNum(corrida);
       if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { monto *= 1000; j++; }
       if (/^(pesos|peso|mangos|mango)$/.test(tokens[j] || '')) j++;
       if (!nombre.length) { // "dos lucas de verdura": el nombre viene después del monto
@@ -135,7 +141,8 @@ function interpretarLocal(texto, hoy = new Date()) {
 // ---------- Modo compra: precios por kilo y cantidades ----------
 // Convierte "dos lucas", "mil doscientos", "2 mil" en dígitos planos ("2000", "1200")
 function numerosADigitos(t) {
-  const tokens = t.replace(/(?<!\d),|,(?!\d)/g, ' , ').split(/\s+/).filter(Boolean);
+  t = separarNumeros(t);
+  const tokens =t.replace(/(?<!\d),|,(?!\d)/g, ' , ').split(/\s+/).filter(Boolean);
   const out = [];
   let i = 0;
   while (i < tokens.length) {

@@ -238,7 +238,9 @@ function parseSegmento(s) {
   nombre = env.nombre; etiq = etiq || env.etiqueta;
   if (!nombre) return null;
   // "Rúcula atado 2000" / "tomate 2500": precio por la unidad más probable (atado => unidad, tomate => kilo)
-  if (fijo) unidad = etiq ? 'u' : sugerirUnidad(nombre);
+  if (fijo) unidad = 'u';   // sin "kilo"/"gramos" dichos, se cuenta por unidad
+  // "tomate 2500 kilo": una cantidad de 100 o más kilos/litros no es una cantidad, es un precio por kilo/litro
+  if (!inline && (unidad === 'kg' || unidad === 'l') && cantidad >= 100) return { tipo: 'precio', producto: nombre, precio: cantidad, unidad, etiqueta: etiq };
   return { tipo: 'compra', producto: nombre, cantidad, unidad, precio: inline, guardarPrecio: !!inline, etiqueta: etiq };
 }
 

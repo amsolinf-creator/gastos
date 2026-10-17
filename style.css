@@ -90,26 +90,26 @@ label.lugar { margin: 0 0 14px; }
 .estado[hidden] { display: none; }
 
 /* ---------- Vista previa de lo interpretado ---------- */
-.propuesta { position: fixed; left: 10px; right: 10px; bottom: calc(var(--nav-h, 64px) + 82px); z-index: 14; display: flex; flex-direction: column; max-height: 52vh; padding: 6px 14px 12px; border-radius: 22px; background: linear-gradient(160deg, rgba(34, 211, 238, .16), rgba(108, 140, 255, .14)), #0c1730; border: 2px solid var(--accent-2); box-shadow: 0 0 0 5px rgba(34, 211, 238, .12), 0 -12px 40px rgba(2, 6, 23, .7); animation: aparece .2s ease; }
+.propuesta { position: fixed; left: 12px; right: 12px; top: 0; bottom: 0; margin: auto; height: fit-content; z-index: 40; display: flex; flex-direction: column; max-height: 74vh; padding: 8px 16px 14px; border-radius: 26px; background: linear-gradient(160deg, rgba(34, 211, 238, .16), rgba(108, 140, 255, .14)), #0c1730; border: 2px solid var(--accent-2); box-shadow: 0 0 0 100vmax rgba(2, 6, 23, .62), 0 0 0 6px rgba(34, 211, 238, .14), 0 20px 60px rgba(0, 0, 0, .6); animation: aparece .2s ease; }
 body:not([data-tab="compra"]) .propuesta { display: none; }
 .propuesta[hidden] { display: none; }
-@keyframes aparece { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes aparece { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
 .prop-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .14); flex: none; }
-.prop-t { font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+.prop-t { font-size: 17px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
 .prop-btns { display: flex; gap: 12px; }
-.ibtn { width: 60px; height: 60px; min-height: 60px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
-.ibtn .ic { width: 30px; height: 30px; stroke-width: 2.6; }
+.ibtn { width: 68px; height: 68px; min-height: 68px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.ibtn .ic { width: 34px; height: 34px; stroke-width: 2.6; }
 .ibtn.si { background: linear-gradient(135deg, #10b981, #34d399); color: #04210f; box-shadow: 0 6px 18px rgba(52, 211, 153, .4); }
 .ibtn.no { background: rgba(255, 255, 255, .08); color: var(--text); }
 #propLista { flex: 1; min-height: 0; overflow-y: auto; }
-.pl { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+.pl { display: flex; align-items: center; gap: 10px; padding: 14px 0; border-top: 1px solid rgba(255, 255, 255, .1); }
 .pl-t { flex: 1; min-width: 0; }
-.pl-t b { display: block; font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; }
-.pl-t small { display: block; color: #aab3cc; font-size: 16px; line-height: 1.3; margin-top: 2px; }
-.pl-m { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--ok); white-space: nowrap; }
+.pl-t b { display: block; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; }
+.pl-t small { display: block; color: #aab3cc; font-size: 18px; line-height: 1.3; margin-top: 2px; }
+.pl-m { font-size: 28px; font-weight: 800; letter-spacing: -.02em; color: var(--ok); white-space: nowrap; }
 .pl-m b { font-weight: 700; }
-.pl-x { background: rgba(255, 255, 255, .06); color: var(--text); border-radius: 50%; width: 40px; height: 40px; min-height: 40px; padding: 0; display: grid; place-items: center; flex: none; }
-.tag { font-size: 15px; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: rgba(108, 140, 255, .22); color: #b9c8ff; }
+.pl-x { background: rgba(255, 255, 255, .06); color: var(--text); border-radius: 50%; width: 46px; height: 46px; min-height: 46px; padding: 0; display: grid; place-items: center; flex: none; }
+.tag { font-size: 17px; font-weight: 700; padding: 6px 14px; border-radius: 999px; background: rgba(108, 140, 255, .22); color: #b9c8ff; }
 .tag.warn { background: rgba(251, 191, 36, .16); color: var(--warn); }
 .tag.del { background: rgba(251, 113, 133, .16); color: var(--danger); }
 label .nota { font-weight: 400; color: #66708e; }

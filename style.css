@@ -89,6 +89,30 @@ label.lugar { margin: 0 0 14px; }
 .estado.abierto { -webkit-line-clamp: unset; display: block; }
 .estado[hidden] { display: none; }
 
+/* ---------- Vista previa de lo interpretado ---------- */
+.propuesta { margin-top: 10px; padding: 10px 12px; border-radius: 18px; background: linear-gradient(160deg, rgba(34, 211, 238, .16), rgba(108, 140, 255, .14)), #0c1730; border: 1.5px solid var(--accent-2); box-shadow: 0 0 0 4px rgba(34, 211, 238, .10), var(--shadow); animation: aparece .2s ease; }
+.propuesta[hidden] { display: none; }
+@keyframes aparece { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+.prop-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.prop-t { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+.prop-btns { display: flex; gap: 8px; }
+.ibtn { width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.ibtn .ic { width: 22px; height: 22px; stroke-width: 2.4; }
+.ibtn.si { background: linear-gradient(135deg, #10b981, #34d399); color: #04210f; box-shadow: 0 6px 18px rgba(52, 211, 153, .4); }
+.ibtn.no { background: rgba(255, 255, 255, .08); color: var(--text); }
+#propLista { max-height: 30vh; overflow-y: auto; margin-top: 6px; }
+.pl { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+.pl-t { flex: 1; min-width: 0; }
+.pl-t b { display: block; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.pl-t small { display: block; color: var(--mute); font-size: 12.5px; }
+.pl-m { font-size: 16px; font-weight: 700; color: var(--ok); white-space: nowrap; }
+.pl-m b { font-weight: 700; }
+.pl-x { background: transparent; color: var(--mute); width: 30px; min-height: 30px; padding: 0; display: grid; place-items: center; flex: none; }
+.tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(108, 140, 255, .22); color: #b9c8ff; }
+.tag.warn { background: rgba(251, 191, 36, .16); color: var(--warn); }
+.tag.del { background: rgba(251, 113, 133, .16); color: var(--danger); }
+label .nota { font-weight: 400; color: #66708e; }
+
 /* ---------- Compra: total y carrito ---------- */
 .hero { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 20px 18px; margin-bottom: 14px; border-radius: 22px; background: linear-gradient(135deg, #2a3f9e 0%, #1b6aa8 60%, #0e8aa0 100%); box-shadow: var(--shadow); border: 1px solid rgba(255, 255, 255, .12); }
 .hero small { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .72); }

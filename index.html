@@ -56,17 +56,27 @@
         </div>
         <p id="cEstado" class="hint estado">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”).</p>
         <p id="pEstado" class="hint estado" hidden>Cambiá precios o borrá productos: “tomate a 3000 el kilo”, “borrá la rúcula”, “borrar toda la lista”.</p>
+        <div id="propuesta" class="propuesta" hidden>
+          <div class="prop-cab">
+            <span class="prop-t">Esto entendí</span>
+            <div class="prop-btns">
+              <button id="propNo" class="ibtn no" aria-label="Descartar"><svg class="ic"><use href="#i-x"/></svg></button>
+              <button id="propSi" class="ibtn si" aria-label="Registrar"><svg class="ic"><use href="#i-check"/></svg></button>
+            </div>
+          </div>
+          <div id="propLista"></div>
+        </div>
       </div>
 
       <div id="cItems"></div>
 
-      <label>Total que marca la caja (opcional)
+      <label>Total que marca la caja <span class="nota">· es el monto que se guarda como gasto</span>
         <input id="cCaja" type="number" inputmode="decimal" placeholder="Ej: 15400">
       </label>
       <div id="cDif" class="dif"></div>
       <div class="row">
         <button id="cVaciar" class="ghost">Vaciar</button>
-        <button id="cGuardar" class="primary">Guardar como gasto</button>
+        <button id="cGuardar" class="primary">Guardar compra</button>
       </div>
 
       <details id="precios">
@@ -138,6 +148,9 @@
       <h1>Ajustes</h1>
       <h2>Inteligencia artificial</h2>
       <p class="hint">Podés usar una o las dos IAs gratuitas. Si la principal falla, la app prueba la otra, y si ninguna responde usa un intérprete local por reglas. Las claves se guardan solo en este dispositivo.</p>
+      <label>Antes de registrar
+        <select id="confirmar"><option value="si">Mostrar lo que entendí y registrar con ✓ (recomendado)</option><option value="no">Registrar directamente, sin confirmar</option></select>
+      </label>
       <label>Velocidad
         <select id="modoIA"><option value="rapido">Rápida: reglas primero, IA solo si no entiende</option><option value="ia">Siempre con IA (más lenta)</option></select>
       </label>

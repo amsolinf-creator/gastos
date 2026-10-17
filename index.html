@@ -56,16 +56,6 @@
         </div>
         <p id="cEstado" class="hint estado">Decí un precio (“tomate a 2500 el kilo”) o lo que ponés en el carrito (“dos kilos de tomate”, “300 gramos de queso”).</p>
         <p id="pEstado" class="hint estado" hidden>Cambiá precios o borrá productos: “tomate a 3000 el kilo”, “borrá la rúcula”, “borrar toda la lista”.</p>
-        <div id="propuesta" class="propuesta" hidden>
-          <div class="prop-cab">
-            <span class="prop-t">Esto entendí</span>
-            <div class="prop-btns">
-              <button id="propNo" class="ibtn no" aria-label="Descartar"><svg class="ic"><use href="#i-x"/></svg></button>
-              <button id="propSi" class="ibtn si" aria-label="Registrar"><svg class="ic"><use href="#i-check"/></svg></button>
-            </div>
-          </div>
-          <div id="propLista"></div>
-        </div>
       </div>
 
       <div id="cItems"></div>
@@ -186,6 +176,17 @@
       <p class="hint">Los gastos viven solo en este navegador. Exportá una copia de vez en cuando.</p>
     </section>
   </main>
+
+  <div id="propuesta" class="propuesta" hidden>
+    <div id="propLista"></div>
+    <div class="prop-cab">
+      <span class="prop-t">Esto entendí</span>
+      <div class="prop-btns">
+        <button id="propNo" class="ibtn no" aria-label="Descartar"><svg class="ic"><use href="#i-x"/></svg></button>
+        <button id="propSi" class="ibtn si" aria-label="Registrar"><svg class="ic"><use href="#i-check"/></svg></button>
+      </div>
+    </div>
+  </div>
 
   <div id="barraTotal">
     <span class="bt-l"><svg class="ic ic-s"><use href="#i-cart"/></svg> Total estimado <small id="cCantFija"></small></span>

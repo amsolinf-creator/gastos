@@ -5,7 +5,7 @@ const LS_AJUSTES = 'gastos.ajustes.v1';
 const cargar = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
 let gastos = cargar(LS_GASTOS, []);
 let ajustes = cargar(LS_AJUSTES, {});
-ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', modoIA: 'rapido', dolar: '', ...ajustes };
+ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', modoIA: 'rapido', confirmar: 'si', dolar: '', ...ajustes };
 const persistir = () => localStorage.setItem(LS_GASTOS, JSON.stringify(gastos));
 
 // ---------- Categorías: el diccionario sugiere y tus correcciones se recuerdan ----------
@@ -507,13 +507,13 @@ $('lista').addEventListener('click', e => {
 // ---------- Ajustes ----------
 function cargarAjustes() {
   $('apiKey').value = ajustes.apiKey; $('modelo').value = ajustes.modelo; $('dolar').value = ajustes.dolar;
-  $('groqKey').value = ajustes.groqKey; $('groqModelo').value = ajustes.groqModelo; $('principal').value = ajustes.principal; $('modoIA').value = ajustes.modoIA;
+  $('groqKey').value = ajustes.groqKey; $('groqModelo').value = ajustes.groqModelo; $('principal').value = ajustes.principal; $('modoIA').value = ajustes.modoIA; $('confirmar').value = ajustes.confirmar;
 }
 $('guardarAjustes').addEventListener('click', () => {
   ajustes = {
     apiKey: $('apiKey').value.trim(), modelo: $('modelo').value.trim() || 'gemini-flash-latest',
     groqKey: $('groqKey').value.trim(), groqModelo: $('groqModelo').value.trim() || 'llama-3.3-70b-versatile',
-    principal: $('principal').value, modoIA: $('modoIA').value, dolar: $('dolar').value,
+    principal: $('principal').value, modoIA: $('modoIA').value, confirmar: $('confirmar').value, dolar: $('dolar').value,
   };
   localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
   toast('Ajustes guardados');
@@ -682,40 +682,107 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
   });
 }
 
-async function agregarCompra() {
-  const texto = $('cTexto').value.trim();
-  if (!texto) { toast('Dictá o escribí algo primero'); return; }
-  const { items, fuente } = await interpretarRapido({ texto, local: interpretarCompraLocal, conIA: interpretarCompraConIA, boton: $('cAgregar'), estado: $('cEstado') });
+// ---------- Vista previa: lo interpretado se muestra destacado y se registra con un toque ----------
+const confirmarAntes = () => ajustes.confirmar !== 'no';
+const pend = { carrito: [], precios: [] };   // propuestas todavía sin registrar
+let modoDictActual = 'carrito';
+const fmtCant = n => String(Math.round(n * 1000) / 1000).replace('.', ',');
 
-  let nPrecios = 0, nItems = 0, sinPrecio = 0;
+// Resuelve lo interpretado SIN modificar nada: precio y nombre de tu lista, subtotal
+function resolverCompra(items) {
+  const out = [];
   for (const it of items) {
     if (!it.producto || !it.producto.trim()) continue;
     if (it.tipo === 'precio') {
-      if (it.precio > 0) { setPrecio(it.producto, it.precio, it.unidad, it.etiqueta); nPrecios++; }
+      if (it.precio > 0) out.push({ tipo: 'precio', producto: cap(it.producto.trim()), precio: it.precio, unidad: it.unidad, etiqueta: it.etiqueta || '' });
       continue;
     }
-    let precio = it.precio > 0 ? it.precio : 0;
-    let up = baseDe(it.unidad);
-    let nombre = cap(it.producto.trim());
-    if (precio) {
-      if (it.guardarPrecio) { setPrecio(it.producto, precio, up, it.etiqueta); nPrecios++; }
-    } else {
+    let precio = it.precio > 0 ? it.precio : 0, up = baseDe(it.unidad), nombre = cap(it.producto.trim());
+    if (!precio) {
       const ex = buscarPrecio(it.producto);
       if (ex) { precio = ex.precio; up = ex.unidad; nombre = ex.nombre; }   // usa el nombre de tu lista ("Shampoo sedal")
     }
-    const nuevo = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: nombre, cantidad: it.cantidad || 1, unidad: it.unidad, precio, up };
-    carrito.push(nuevo);
-    nItems++;
+    out.push({ tipo: 'compra', producto: nombre, original: it.producto, cantidad: it.cantidad || 1, unidad: it.unidad, precio, up, guardarPrecio: !!(it.precio > 0 && it.guardarPrecio), etiqueta: it.etiqueta || '' });
+  }
+  return out;
+}
+
+// Registra de verdad: guarda precios y suma al carrito
+function aplicarCompra(lista) {
+  let nPrecios = 0, nItems = 0, sinPrecio = 0;
+  for (const p of lista) {
+    if (p.tipo === 'precio') { setPrecio(p.producto, p.precio, p.unidad, p.etiqueta); nPrecios++; continue; }
+    if (p.guardarPrecio) { setPrecio(p.original || p.producto, p.precio, p.up, p.etiqueta); nPrecios++; }
+    const nuevo = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: p.producto, cantidad: p.cantidad, unidad: p.unidad, precio: p.precio, up: p.up };
+    carrito.push(nuevo); nItems++;
     if (subtotal(nuevo) === null) sinPrecio++;
   }
-  guardarCarrito();
-  $('cTexto').value = '';
+  guardarCarrito(); renderCompra();
   const partes = [];
   if (nPrecios) partes.push(`${nPrecios} precio(s) guardado(s)`);
   if (nItems) partes.push(`${nItems} al carrito`);
   if (sinPrecio) partes.push(`⚠ ${sinPrecio} sin precio`);
-  $('cEstado').textContent = `${partes.join(' · ') || 'No entendí nada'} — interpretado con ${fuente}`;
-  renderCompra();
+  return partes;
+}
+
+function lineaPropuesta(p, modo, i) {
+  let nombre = p.producto || '', det = '', der = '';
+  const etq = (u, e) => e || nombreUnidad[u] || u;
+  if (modo === 'carrito') {
+    if (p.tipo === 'precio') { det = `precio ${peso(p.precio)} / ${etq(p.unidad, p.etiqueta)}`; der = '<span class="tag">precio</span>'; }
+    else {
+      const sub = subtotal(p);
+      det = p.precio > 0 ? `${fmtCant(p.cantidad)} ${p.unidad} × ${peso(p.precio)} / ${nombreUnidad[p.up] || p.up}` : `${fmtCant(p.cantidad)} ${p.unidad}`;
+      der = sub === null ? `<span class="tag warn">${p.precio > 0 ? 'revisá kg/u' : 'sin precio'}</span>` : `<b>${peso(sub)}</b>`;
+    }
+  } else if (p.accion === 'precio') {
+    const ex = buscarExacto(p.producto);
+    det = `${ex ? 'actualiza' : 'nuevo'} · ${peso(p.precio)} / ${etq(p.unidad || (ex && ex.unidad) || 'u', p.etiqueta)}`; der = '<span class="tag">precio</span>';
+  } else if (p.accion === 'borrar') {
+    const ex = buscarExacto(p.producto) || buscarPrecio(p.producto);
+    nombre = ex ? ex.nombre : p.producto; det = ex ? 'se quita de la lista' : 'no está en la lista';
+    der = `<span class="tag ${ex ? 'del' : 'warn'}">${ex ? 'borrar' : 'no está'}</span>`;
+  } else { nombre = 'Toda la lista'; det = `${precios.length} producto(s)`; der = '<span class="tag del">borrar todo</span>'; }
+  return `<div class="pl"><div class="pl-t"><b>${esc(nombre)}</b><small>${esc(det)}</small></div><div class="pl-m">${der}</div><button class="pl-x" data-px="${i}" aria-label="Quitar">${ICX}</button></div>`;
+}
+
+function renderPropuesta() {
+  const lista = pend[modoDictActual];
+  $('propuesta').hidden = !lista.length;
+  $('propLista').innerHTML = lista.map((p, i) => lineaPropuesta(p, modoDictActual, i)).join('');
+}
+
+function registrarPropuesta() {
+  const modo = modoDictActual, lista = pend[modo];
+  if (!lista.length) return;
+  let partes;
+  if (modo === 'carrito') partes = aplicarCompra(lista);
+  else partes = resumenPrecios(aplicarAccionesPrecios(lista));
+  pend[modo] = []; renderPropuesta();
+  const el = modo === 'carrito' ? $('cEstado') : $('pEstado');
+  el.textContent = '✓ Registrado: ' + (partes.join(' · ') || 'nada que registrar');
+}
+$('propSi').addEventListener('click', registrarPropuesta);
+$('propNo').addEventListener('click', () => { pend[modoDictActual] = []; renderPropuesta(); });
+$('propLista').addEventListener('click', e => {
+  const b = e.target.closest('[data-px]'); if (!b) return;
+  pend[modoDictActual].splice(+b.dataset.px, 1); renderPropuesta();
+});
+
+async function agregarCompra() {
+  const texto = $('cTexto').value.trim();
+  if (!texto) { toast('Dictá o escribí algo primero'); return; }
+  const { items, fuente } = await interpretarRapido({ texto, local: interpretarCompraLocal, conIA: interpretarCompraConIA, boton: $('cAgregar'), estado: $('cEstado') });
+  const lista = resolverCompra(items);
+  if (!lista.length) { $('cEstado').textContent = `No entendí nada — interpretado con ${fuente}`; return; }
+  $('cTexto').value = '';
+  if (confirmarAntes()) {
+    pend.carrito.push(...lista);
+    $('cEstado').textContent = `Revisá y tocá ✓ para registrar — ${fuente}`;
+    renderPropuesta();
+  } else {
+    $('cEstado').textContent = `${aplicarCompra(lista).join(' · ')} — interpretado con ${fuente}`;
+  }
 }
 
 function renderCompra() {
@@ -784,18 +851,37 @@ $('cVaciar').addEventListener('click', () => {
   if (carrito.length && !confirm('¿Vaciar el carrito?')) return;
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
 });
+// Al finalizar, el gasto es lo que marcó la caja (no el estimado). Se reparte entre los productos en proporción a su
+// precio estimado, así cada categoría conserva su parte y la suma da exactamente el total de la caja.
 $('cGuardar').addEventListener('click', () => {
   const validos = carrito.filter(it => subtotal(it) > 0);
-  if (!validos.length) { toast('No hay productos con precio para guardar'); return; }
+  const estimado = totalCarrito();
+  let total = Number($('cCaja').value) || 0;
+  if (!validos.length && !total) { toast('Cargá el total que marca la caja'); $('cCaja').focus(); return; }
+  if (!total) {
+    if (!confirm(`No cargaste el total que marca la caja.\n¿Guardar con el total estimado (${peso(estimado)})?`)) { $('cCaja').focus(); return; }
+    total = estimado;
+  }
   const dolar = Number(ajustes.dolar) || null;
   const fecha = hoyISO();
-  validos.forEach(it => gastos.push({
+  const redondeo = n => Math.round(n * 100) / 100;
+  const registros = [];
+  if (validos.length) {
+    let acum = 0;
+    validos.forEach((it, i) => {
+      const est = subtotal(it);
+      const monto = i === validos.length - 1 ? redondeo(total - acum) : redondeo(total * est / estimado);
+      acum += monto;
+      registros.push({ producto: it.producto, monto, estimado: redondeo(est) });
+    });
+  } else registros.push({ producto: lugarActual ? 'Compra en ' + lugarActual : 'Compra', monto: total, estimado: 0 });
+  registros.filter(r => r.monto > 0).forEach(r => gastos.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: it.producto, monto: Math.round(subtotal(it) * 100) / 100, categoria: categoriaDe(it.producto), fecha, lugar: lugarActual, dolar,
+    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, dolar,
   }));
   persistir();
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
-  toast(`${validos.length} gasto(s) guardado(s) en el historial`);
+  toast(`Compra guardada: ${peso(total)}`);
 });
 
 // Lista de precios
@@ -880,22 +966,34 @@ function aplicarAccionesPrecios(acciones) {
   return r;
 }
 
-async function editarPrecios() {
-  const texto = $('pTexto').value.trim();
-  if (!texto) { toast('Dictá o escribí algo primero'); return; }
-  const { items: acciones, fuente } = await interpretarRapido({ texto, local: interpretarPreciosLocal, conIA: interpretarPreciosConIA, boton: $('pAplicar'), estado: $('pEstado') });
-  const r = aplicarAccionesPrecios(acciones);
+function resumenPrecios(r) {
   const partes = [];
   if (r.nuevos.length) partes.push('agregado: ' + r.nuevos.join(', '));
   if (r.cambiados.length) partes.push('actualizado: ' + r.cambiados.join(', '));
   if (r.borrados.length) partes.push('borrado: ' + r.borrados.join(', '));
   if (r.todo) partes.push('lista eliminada');
   if (r.noEncontrados.length) partes.push('no está en la lista: ' + r.noEncontrados.join(', '));
-  $('pEstado').textContent = `${partes.join(' · ') || 'No entendí nada'} — interpretado con ${fuente}`;
-  if (partes.length) $('pTexto').value = '';
+  return partes;
+}
+
+async function editarPrecios() {
+  const texto = $('pTexto').value.trim();
+  if (!texto) { toast('Dictá o escribí algo primero'); return; }
+  const { items: acciones, fuente } = await interpretarRapido({ texto, local: interpretarPreciosLocal, conIA: interpretarPreciosConIA, boton: $('pAplicar'), estado: $('pEstado') });
+  const validas = acciones.filter(a => a.accion === 'borrar_todo' || (a.producto && (a.accion === 'borrar' || a.precio > 0)));
+  if (!validas.length) { $('pEstado').textContent = `No entendí nada — interpretado con ${fuente}`; return; }
+  $('pTexto').value = '';
+  if (confirmarAntes()) {
+    pend.precios.push(...validas);
+    $('pEstado').textContent = `Revisá y tocá ✓ para registrar — ${fuente}`;
+    renderPropuesta();
+  } else {
+    $('pEstado').textContent = `${resumenPrecios(aplicarAccionesPrecios(validas)).join(' · ')} — interpretado con ${fuente}`;
+  }
 }
 // Barra de dictado única: el selector manda lo dictado al carrito o a la lista de precios
 function setModoDict(m) {
+  modoDictActual = m; renderPropuesta();
   $('dictCarrito').hidden = m !== 'carrito'; $('dictPrecios').hidden = m !== 'precios';
   $('cEstado').hidden = m !== 'carrito'; $('pEstado').hidden = m !== 'precios';
   document.querySelectorAll('#modoDict button').forEach(b => b.classList.toggle('on', b.dataset.m === m));

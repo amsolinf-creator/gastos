@@ -124,6 +124,29 @@
     <!-- HISTORIAL -->
     <section id="tab-historial" class="tab">
       <h1>Historial</h1>
+      <details id="reporte" class="reporte">
+        <summary><span>Reporte en Excel</span></summary>
+        <label>Período
+          <select id="repPeriodo">
+            <option value="mes">Este mes</option>
+            <option value="mesAnt">Mes anterior</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="anio">Este año</option>
+            <option value="todo">Todo</option>
+            <option value="rango">Elegir fechas…</option>
+          </select>
+        </label>
+        <div id="repRango" class="row" hidden>
+          <input id="repDesde" type="date" aria-label="Desde">
+          <input id="repHasta" type="date" aria-label="Hasta">
+        </div>
+        <p id="repInfo" class="hint"></p>
+        <div class="row">
+          <button id="repDescargar" class="primary">Descargar Excel</button>
+          <button id="repCompartir" class="ghost" hidden>Compartir</button>
+        </div>
+        <p class="hint">Incluye las hojas: Resumen, Gastos, Compras, Por categoría, Por lugar, Por mes y Por día.</p>
+      </details>
       <button id="hReclasificar" class="ghost" style="width:100%">Reclasificar los de «Otros»</button>
       <p class="hint">Tocá una compra para ver su detalle. Ahí podés corregir la categoría de cada producto (la app lo recuerda) o el lugar de toda la compra.</p>
       <div id="lista"></div>
@@ -207,6 +230,7 @@
   </div>
   <div id="toast" hidden></div>
   <script src="parser.js"></script>
+  <script src="xlsx.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

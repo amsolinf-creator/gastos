@@ -603,7 +603,7 @@ $('exportar').addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `respaldo-gastos-${hoyISO()}.json`; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  localStorage.setItem('gastos.copiaManual.v1', new Date().toISOString()); pintarDrive();
+  registrarCopiaManual();
 });
 $('importar').addEventListener('click', () => $('archivo').click());
 // Acepta copias de este tipo (.json o .txt) y también las exportadas por versiones anteriores
@@ -1147,6 +1147,7 @@ function armarHojas(lista, r) {
       [xTxt('Cantidad de compras', EST.negrita), xNum(bloques.filter(b => b.tipo === 'Compra').length)],
       [xTxt('Promedio por día con gastos', EST.negrita), xNum(redondeo(total / dias), EST.dinero)],
       [xTxt('Generado', EST.negrita), xTxt(`${ahora.toLocaleDateString('es-AR')} ${ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`)],
+      [], [xTxt('Generado con Gastos por voz · AM Soluciones Informáticas', EST.negrita)],
     ],
   };
 

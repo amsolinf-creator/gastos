@@ -92,8 +92,17 @@ function separarNumeros(t) {
     .replace(/(\d)(mil|millon|millones)\b/g, '$1 $2');
 }
 
+// El dictado escribe los miles de varias formas: "40.000", "40 000" (espacio común o especial), "40,000".
+// Todas valen 40000. Una coma seguida de 3 cifras no se toca si lo que sigue es una medida ("1,250 kilos").
+function unirMiles(t) {
+  const medida = '(?! ?(?:kilos?|kgs?|kilogramos?|gramos?|grs?|gr|litros?|lts?|ml)\\b)';
+  return t.replace(/[  ]/g, ' ')
+    .replace(new RegExp('(?<![\\d.,])(\\d{1,3}(?: \\d{3})+)(?![\\d]|[.,]\\d)' + medida, 'g'), m => m.replace(/ /g, ''))
+    .replace(new RegExp('(?<![\\d.,])(\\d{1,3}(?:,\\d{3})+)(?![\\d]|[.,]\\d)' + medida, 'g'), m => m.replace(/,/g, ''));
+}
+
 function interpretarLocal(texto, hoy = new Date()) {
-  let t = separarNumeros(sinTildes(texto.toLowerCase())).replace(/[$]/g, ' ').replace(/[;:]/g, ',');
+  let t = unirMiles(separarNumeros(sinTildes(texto.toLowerCase()))).replace(/[$]/g, ' ').replace(/[;:]/g, ',');
   let fecha = new Date(hoy);
   if (/\banteayer\b/.test(t)) { fecha.setDate(fecha.getDate() - 2); t = t.replace(/\banteayer\b/, ' '); }
   else if (/\bayer\b/.test(t)) { fecha.setDate(fecha.getDate() - 1); t = t.replace(/\bayer\b/, ' '); }
@@ -141,7 +150,7 @@ function interpretarLocal(texto, hoy = new Date()) {
 // ---------- Modo compra: precios por kilo y cantidades ----------
 // Convierte "dos lucas", "mil doscientos", "2 mil" en dígitos planos ("2000", "1200")
 function numerosADigitos(t) {
-  t = separarNumeros(t);
+  t = unirMiles(separarNumeros(t));
   const tokens =t.replace(/(?<!\d),|,(?!\d)/g, ' , ').split(/\s+/).filter(Boolean);
   const out = [];
   let i = 0;

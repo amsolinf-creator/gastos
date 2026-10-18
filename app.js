@@ -23,6 +23,9 @@ function categoriaRubro(producto) {
   return capital(m[1].replace(/eria$/, 'ería'));
 }
 
+// Si lo dictado es justo un comercio de tu lista de lugares ("kiosco", "quiosco", "supermercado"), ese es el rubro
+const comercioExacto = producto => lugares.find(l => parecido(producto, l) === 1) || null;
+
 // Lo que se dictó sirve de categoría cuando no hay una conocida: "pintura" => "Pintura"
 function categoriaLibre(producto) {
   const t = producto.trim().replace(/\s+/g, ' ');
@@ -33,6 +36,7 @@ function categoriaLibre(producto) {
 function categoriaDe(producto, sugerida, libre = true) {
   return catsAprendidas[claveCat(producto)]
     || categoriaRubro(producto)
+    || comercioExacto(producto)
     || (sugerida && sugerida !== 'Otros' ? sugerida : null)
     || (adivinarCategoria(producto) !== 'Otros' ? adivinarCategoria(producto) : null)
     || (libre ? categoriaLibre(producto) : null)
@@ -65,7 +69,7 @@ const opcionesLugar = sel => {
   return '<option value="">Sin especificar</option>' + lista.map(l => `<option${l === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
 };
 function renderLugares() {
-  for (const id of ['cLugar', 'gLugar']) {
+  for (const id of ['cLugar']) {
     $(id).innerHTML = opcionesLugar(lugarActual) + '<option value="__nuevo__">➕ Agregar lugar…</option>';
     $(id).value = lugarActual;
   }
@@ -83,7 +87,13 @@ function cambiarLugar(valor) {
   try { localStorage.setItem(LS_LUGAR, JSON.stringify(lugarActual)); } catch {}
   renderLugares();
 }
-document.addEventListener('change', e => { if (e.target.id === 'cLugar' || e.target.id === 'gLugar') cambiarLugar(e.target.value); });
+// En "Gasto" no hay selector de lugar: el lugar sale de lo dictado ("kiosco 4500" => Kiosco, "ferretería 40 mil" => Ferretería)
+function lugarDe(producto) {
+  let mejor = '', mejorP = 0;
+  for (const l of lugares) { const p = parecido(producto, l); if (p > mejorP) { mejor = l; mejorP = p; } }
+  return mejor || categoriaRubro(producto) || '';
+}
+document.addEventListener('change', e => { if (e.target.id === 'cLugar') cambiarLugar(e.target.value); });
 
 const $ = id => document.getElementById(id);
 const ICX = '<svg class="ic ic-s"><use href="#i-x"/></svg>';
@@ -372,7 +382,7 @@ $('guardar').addEventListener('click', () => {
     if (p.catEditada) aprenderCategoria(p.producto, p.categoria);
     gastos.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarActual, dolar,
+      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarDe(p.producto), dolar,
     });
   });
   persistir(); limpiarRegistro(); renderHoy();

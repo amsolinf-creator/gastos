@@ -185,12 +185,37 @@
       <button id="probarIA" class="ghost" style="width:100%;margin-top:10px">Probar las IAs</button>
       <p id="probarEstado" class="hint" style="white-space:pre-line"></p>
 
-      <h2>Datos</h2>
+      <h2>Copia de seguridad</h2>
+      <div class="panel" id="drivePanel">
+        <p id="driveEstado" class="hint" style="white-space:pre-line;margin-top:0"></p>
+        <p id="driveError" class="hint aviso-txt" hidden></p>
+        <button id="driveConectar" class="primary" style="margin-top:4px">Conectar Google Drive</button>
+        <div id="driveAcciones" hidden>
+          <div class="row">
+            <button id="driveRespaldar" class="ghost">Respaldar ahora</button>
+            <button id="driveRestaurar" class="ghost">Restaurar</button>
+          </div>
+          <label class="chk"><input type="checkbox" id="driveAuto"> Copia automática cada vez que guardo algo</label>
+          <button id="driveDesconectar" class="danger" style="margin-top:12px">Desconectar Drive</button>
+        </div>
+        <details id="driveAvanzado">
+          <summary><span>Configuración avanzada</span></summary>
+          <label>ID de cliente de Google
+            <input id="googleClientId" type="text" autocomplete="off" placeholder="1234…apps.googleusercontent.com">
+          </label>
+          <p class="hint">Solo hace falta si la app todavía no trae uno incorporado.</p>
+        </details>
+      </div>
+
+      <h2>Copia manual</h2>
+      <p class="hint" style="margin-top:0">Por si tu Drive está lleno o no querés conectarlo: enviá la copia por WhatsApp, correo o guardala donde prefieras.</p>
+      <button id="copiaWsp" class="primary" style="margin-top:4px">Enviar copia por WhatsApp</button>
+      <p id="copiaManualInfo" class="hint"></p>
       <div class="row">
-        <button id="exportar" class="ghost">Exportar copia</button>
+        <button id="exportar" class="ghost">Descargar copia</button>
         <button id="importar" class="ghost">Importar copia</button>
       </div>
-      <input id="archivo" type="file" accept="application/json" hidden>
+      <input id="archivo" type="file" accept=".json,.txt,application/json,text/plain" hidden>
       <button id="borrarTodo" class="danger">Borrar todos los datos</button>
       <p class="hint">Los gastos viven solo en este navegador. Exportá una copia de vez en cuando.</p>
     </section>
@@ -229,8 +254,10 @@
     <button id="okCerrar" aria-label="Cerrar"><svg class="ic ic-s"><use href="#i-x"/></svg></button>
   </div>
   <div id="toast" hidden></div>
+  <script src="config.js"></script>
   <script src="parser.js"></script>
   <script src="xlsx.js"></script>
   <script src="app.js"></script>
+  <script src="respaldo.js"></script>
 </body>
 </html>

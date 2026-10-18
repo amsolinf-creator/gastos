@@ -208,6 +208,10 @@ summary > span:first-child { flex: 1; }
 .gasto .der button { background: transparent; color: var(--mute); padding: 0; width: 30px; min-height: 30px; display: grid; place-items: center; }
 .metas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
+/* Reporte en Excel */
+details.reporte { margin: 0 0 12px; }
+#repRango input { min-width: 0; flex: 1; padding: 0 10px; font-size: 15px; }
+
 /* Compra agrupada en el historial */
 details.compra-g { margin-top: 8px; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .compra-g > summary { padding: 14px; gap: 10px; }

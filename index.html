@@ -7,7 +7,8 @@
   <meta name="color-scheme" content="dark">
   <title>Gastos por voz</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icon.svg">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-tab="compra">
@@ -124,6 +125,14 @@
     <!-- HISTORIAL -->
     <section id="tab-historial" class="tab">
       <h1>Historial</h1>
+      <div id="recordatorioCopia" class="recordatorio" hidden>
+        <b>Hacé una copia de tus gastos</b>
+        <p id="recordatorioTxt" class="hint"></p>
+        <div class="row">
+          <button id="recMas" class="ghost">Más tarde</button>
+          <button id="recEnviar" class="primary">Enviar copia</button>
+        </div>
+      </div>
       <details id="reporte" class="reporte">
         <summary><span>Reporte en Excel</span></summary>
         <label>Período
@@ -185,7 +194,8 @@
       <button id="probarIA" class="ghost" style="width:100%;margin-top:10px">Probar las IAs</button>
       <p id="probarEstado" class="hint" style="white-space:pre-line"></p>
 
-      <h2>Copia de seguridad</h2>
+      <div id="driveBloque">
+      <h2>Copia en Google Drive</h2>
       <div class="panel" id="drivePanel">
         <p id="driveEstado" class="hint" style="white-space:pre-line;margin-top:0"></p>
         <p id="driveError" class="hint aviso-txt" hidden></p>
@@ -207,17 +217,27 @@
         </details>
       </div>
 
-      <h2>Copia manual</h2>
-      <p class="hint" style="margin-top:0">Por si tu Drive está lleno o no querés conectarlo: enviá la copia por WhatsApp, correo o guardala donde prefieras.</p>
+      </div>
+
+      <h2 id="tituloManual">Copia de seguridad</h2>
+      <p class="hint aviso-txt" style="margin-top:0"><b>Importante:</b> tus gastos se guardan solo en este celular. Si borrás los datos del navegador o desinstalás la app, <b>se pierden</b>. Con una copia los recuperás con «Importar copia».</p>
+      <p class="hint">Enviá la copia por WhatsApp, correo o guardala donde prefieras.</p>
       <button id="copiaWsp" class="primary" style="margin-top:4px">Enviar copia por WhatsApp</button>
       <p id="copiaManualInfo" class="hint"></p>
+      <p id="persistInfo" class="hint"></p>
       <div class="row">
         <button id="exportar" class="ghost">Descargar copia</button>
         <button id="importar" class="ghost">Importar copia</button>
       </div>
       <input id="archivo" type="file" accept=".json,.txt,application/json,text/plain" hidden>
       <button id="borrarTodo" class="danger">Borrar todos los datos</button>
-      <p class="hint">Los gastos viven solo en este navegador. Exportá una copia de vez en cuando.</p>
+
+      <h2>Acerca de</h2>
+      <div class="panel acerca">
+        <img src="logo.jpg" alt="AM Soluciones Informáticas" class="logo-acerca" width="640" height="457">
+        <p><b>Gastos por voz</b><br>Desarrollada por <b>AM Soluciones Informáticas</b>.</p>
+        <p id="versionApp" class="hint"></p>
+      </div>
     </section>
   </main>
 
@@ -252,6 +272,17 @@
   <div id="okActualizado" class="aviso ok" hidden>
     <span id="okTexto" class="av-t"></span>
     <button id="okCerrar" aria-label="Cerrar"><svg class="ic ic-s"><use href="#i-x"/></svg></button>
+  </div>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <img id="modalLogo" class="modal-logo" src="logo.jpg" alt="AM Soluciones Informáticas" width="640" height="457" hidden>
+      <h3 id="modalTitulo"></h3>
+      <div id="modalTexto"></div>
+      <div class="modal-btns">
+        <button id="modalOk" class="primary"></button>
+        <button id="modalSec" class="ghost" hidden></button>
+      </div>
+    </div>
   </div>
   <div id="toast" hidden></div>
   <script src="config.js"></script>

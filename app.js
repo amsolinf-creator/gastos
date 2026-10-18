@@ -1101,6 +1101,138 @@ $('pAgregar').addEventListener('click', () => {
   $('pNom').value = ''; $('pPrecio').value = ''; $('pUni').value = 'u'; renderPrecios();
 });
 
+// ---------- Reporte en Excel ----------
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const fmtFecha = iso => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+
+function rangoReporte() {
+  const hoy = new Date(), z = n => String(n).padStart(2, '0');
+  const iso = d => `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+  const v = $('repPeriodo').value, y = hoy.getFullYear(), m = hoy.getMonth();
+  if (v === 'mes') return { desde: iso(new Date(y, m, 1)), hasta: iso(new Date(y, m + 1, 0)) };
+  if (v === 'mesAnt') return { desde: iso(new Date(y, m - 1, 1)), hasta: iso(new Date(y, m, 0)) };
+  if (v === '30') { const d = new Date(hoy); d.setDate(d.getDate() - 29); return { desde: iso(d), hasta: iso(hoy) }; }
+  if (v === 'anio') return { desde: `${y}-01-01`, hasta: `${y}-12-31` };
+  if (v === 'rango') return { desde: $('repDesde').value || '0000-01-01', hasta: $('repHasta').value || '9999-12-31' };
+  const fs = gastos.map(g => g.fecha).sort();
+  return { desde: fs[0] || iso(hoy), hasta: fs[fs.length - 1] || iso(hoy) };
+}
+const gastosDelReporte = r => gastos.filter(g => g.fecha >= r.desde && g.fecha <= r.hasta).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+function sumarPor(lista, clave) {
+  const m = new Map();
+  for (const g of lista) { const k = clave(g); const e = m.get(k) || { total: 0, n: 0 }; e.total += g.monto; e.n++; m.set(k, e); }
+  return [...m.entries()];
+}
+
+function armarHojas(lista, r) {
+  const total = lista.reduce((t, g) => t + g.monto, 0);
+  const redondeo = n => Math.round(n * 100) / 100;
+  const hayUsd = lista.some(g => g.dolar);
+
+  // una compra = un bloque; cada gasto directo = su propio bloque
+  const bloques = [], mapa = new Map();
+  for (const g of lista) {
+    if (!g.compraId) { bloques.push({ fecha: g.fecha, tipo: 'Gasto directo', lugar: g.lugar || '', items: [g] }); continue; }
+    if (!mapa.has(g.compraId)) { const b = { fecha: g.fecha, tipo: 'Compra', lugar: g.lugar || '', items: [] }; mapa.set(g.compraId, b); bloques.push(b); }
+    mapa.get(g.compraId).items.push(g);
+  }
+  const dias = new Set(lista.map(g => g.fecha)).size || 1;
+  const ahora = new Date();
+
+  const resumen = {
+    nombre: 'Resumen', anchos: [30, 34], filas: [
+      [xTxt('Reporte de gastos', EST.titulo)], [],
+      [xTxt('Período', EST.negrita), xTxt(`${fmtFecha(r.desde)} al ${fmtFecha(r.hasta)}`)],
+      [xTxt('Total gastado', EST.negrita), xNum(redondeo(total), EST.dinero)],
+      [xTxt('Cantidad de gastos', EST.negrita), xNum(lista.length)],
+      [xTxt('Cantidad de compras', EST.negrita), xNum(bloques.filter(b => b.tipo === 'Compra').length)],
+      [xTxt('Promedio por día con gastos', EST.negrita), xNum(redondeo(total / dias), EST.dinero)],
+      [xTxt('Generado', EST.negrita), xTxt(`${ahora.toLocaleDateString('es-AR')} ${ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`)],
+    ],
+  };
+
+  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
+  const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '']
+    .concat(hayUsd ? [g.dolar ? xNum(redondeo(g.monto / g.dolar), 0) : ''] : []));
+  const gastosHoja = {
+    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 10], filtro: true, filtroHasta: lista.length + 1,
+    filas: [encG, ...filasG, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${lista.length + 1})`, redondeo(total), EST.totalDinero)]],
+  };
+
+  const filasC = bloques.map(b => {
+    const t = b.items.reduce((x, g) => x + g.monto, 0);
+    const detalle = b.items.map(g => g.producto).join(', ');
+    return [xFecha(b.fecha), b.tipo, b.lugar, detalle, xNum(b.items.length), xNum(redondeo(t), EST.dinero)];
+  });
+  const comprasHoja = {
+    nombre: 'Compras', anchos: [12, 15, 18, 55, 11, 14], filtro: true, filtroHasta: bloques.length + 1,
+    filas: [['Fecha', 'Tipo', 'Lugar', 'Detalle', 'Productos', 'Total'].map(t => xTxt(t, EST.encabezado)), ...filasC, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${bloques.length + 1})`, redondeo(total), EST.totalDinero)]],
+  };
+
+  const hojaAgrupada = (nombre, titulo, grupos) => {
+    const filas = grupos.map(([k, e]) => [k, xNum(redondeo(e.total), EST.dinero), xNum(total ? e.total / total : 0, EST.porcentaje), xNum(e.n)]);
+    return {
+      nombre, anchos: [26, 16, 14, 10], filtro: true, filtroHasta: filas.length + 1,
+      filas: [[titulo, 'Total', '% del total', 'Gastos'].map(t => xTxt(t, EST.encabezado)), ...filas, [], [xTxt('TOTAL', EST.totalTxt), xForm(`SUM(B2:B${filas.length + 1})`, redondeo(total), EST.totalDinero)]],
+    };
+  };
+  const porCat = sumarPor(lista, g => g.categoria || 'Otros').sort((a, b) => b[1].total - a[1].total);
+  const porLugar = sumarPor(lista, g => g.lugar || 'Sin lugar').sort((a, b) => b[1].total - a[1].total);
+  const porMes = sumarPor(lista, g => g.fecha.slice(0, 7)).sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([k, e]) => [`${MESES[+k.slice(5) - 1]} ${k.slice(0, 4)}`, e]);
+  const porDia = sumarPor(lista, g => g.fecha).sort((a, b) => a[0].localeCompare(b[0]));
+  const filasD = porDia.map(([k, e]) => [xFecha(k), xNum(redondeo(e.total), EST.dinero), xNum(e.n)]);
+  const diaHoja = {
+    nombre: 'Por día', anchos: [14, 16, 10], filtro: true, filtroHasta: filasD.length + 1,
+    filas: [['Fecha', 'Total', 'Gastos'].map(t => xTxt(t, EST.encabezado)), ...filasD, [], [xTxt('TOTAL', EST.totalTxt), xForm(`SUM(B2:B${filasD.length + 1})`, redondeo(total), EST.totalDinero)]],
+  };
+
+  return [resumen, gastosHoja, comprasHoja, hojaAgrupada('Por categoría', 'Categoría', porCat), hojaAgrupada('Por lugar', 'Lugar', porLugar), hojaAgrupada('Por mes', 'Mes', porMes), diaHoja];
+}
+
+function generarReporte() {
+  const r = rangoReporte(), lista = gastosDelReporte(r);
+  if (!lista.length) { toast('No hay gastos en ese período'); return null; }
+  const bytes = crearXlsx(armarHojas(lista, r));
+  return { blob: new Blob([bytes], { type: TIPO_XLSX }), nombre: `Gastos_${r.desde}_a_${r.hasta}.xlsx`, n: lista.length };
+}
+
+function infoReporte() {
+  const lista = gastosDelReporte(rangoReporte());
+  $('repInfo').textContent = lista.length ? `${lista.length} gasto(s) · total ${peso(lista.reduce((t, g) => t + g.monto, 0))}` : 'No hay gastos en ese período.';
+}
+$('repPeriodo').addEventListener('change', () => { $('repRango').hidden = $('repPeriodo').value !== 'rango'; infoReporte(); });
+$('repDesde').addEventListener('change', infoReporte);
+$('repHasta').addEventListener('change', infoReporte);
+$('reporte').addEventListener('toggle', () => { if ($('reporte').open) infoReporte(); });
+{
+  const z = n => String(n).padStart(2, '0'), h = new Date();
+  $('repDesde').value = `${h.getFullYear()}-${z(h.getMonth() + 1)}-01`;
+  $('repHasta').value = `${h.getFullYear()}-${z(h.getMonth() + 1)}-${z(h.getDate())}`;
+}
+
+$('repDescargar').addEventListener('click', () => {
+  const rep = generarReporte(); if (!rep) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(rep.blob); a.download = rep.nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast(`Excel descargado (${rep.n} gastos)`);
+});
+
+// "Compartir" abre el menú del celular (WhatsApp, Drive, correo…); solo se muestra si el navegador lo permite
+try {
+  if (navigator.canShare && navigator.canShare({ files: [new File([''], 'x.xlsx', { type: TIPO_XLSX })] })) {
+    $('repCompartir').hidden = false;
+    $('repCompartir').addEventListener('click', async () => {
+      const rep = generarReporte(); if (!rep) return;
+      try { await navigator.share({ files: [new File([rep.blob], rep.nombre, { type: TIPO_XLSX })], title: 'Reporte de gastos' }); }
+      catch (e) { if (e && e.name !== 'AbortError') toast('No se pudo compartir; usá Descargar'); }
+    });
+  }
+} catch {}
+
 // Pantalla siempre vertical (refuerzo del "orientation" del manifest; solo aplica con la app instalada)
 try { screen.orientation.lock('portrait').catch(() => {}); } catch {}
 

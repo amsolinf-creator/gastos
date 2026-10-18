@@ -310,6 +310,7 @@ function mostrarBienvenida() {
     logo: true, titulo: 'Bienvenido a Gastos por voz',
     html: '<ol class="pasos"><li>Dictá lo que vas comprando: <i>“dos kilos de tomate”</i>.</li><li>Revisá lo que entendió y tocá <b>✓</b>.</li><li>Al final, cargá el total de la caja y tocá <b>Guardar compra</b>.</li></ol><p class="hint">Tus datos se guardan solo en este celular. Hacé una copia de vez en cuando desde Ajustes.</p>',
     ok: 'Empezar', alOk: () => localStorage.setItem('gastos.bienvenida.v1', '1'),
+    sec: window.__instalar ? 'Instalar la app' : '', alSec: () => { localStorage.setItem('gastos.bienvenida.v1', '1'); instalarApp(); },
   });
 }
 
@@ -376,3 +377,30 @@ setTimeout(() => {   // un solo aviso por día como máximo
 obtenerVersion(navigator.serviceWorker && navigator.serviceWorker.controller).then(v => {
   const el = $('versionApp'); if (el) el.textContent = v ? 'Versión ' + (v.match(/\d+/) || [v])[0] : '';
 });
+
+// ---------- Instalación como app ----------
+const estaInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const esIphone = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+function pintarInstalar() {
+  const caja = $('instalarApp'); if (!caja) return;
+  if (estaInstalada()) { caja.hidden = true; return; }
+  caja.hidden = false;
+  const puede = !!window.__instalar;
+  $('instalarBtn').hidden = !puede;
+  $('instalarTxt').textContent = puede
+    ? 'Se instala como una app más, con su ícono en la pantalla de inicio.'
+    : (esIphone()
+      ? 'En Safari: tocá el botón Compartir y elegí «Agregar a pantalla de inicio».'
+      : 'En Chrome: tocá los tres puntos ⋮ y elegí «Instalar aplicación» o «Agregar a la pantalla principal». Si no aparece, abrí este enlace directamente en Chrome (no desde WhatsApp ni otro navegador).');
+}
+async function instalarApp() {
+  const ev = window.__instalar; if (!ev) return;
+  ev.prompt();
+  try { await ev.userChoice; } catch {}
+  window.__instalar = null; pintarInstalar();
+}
+$('instalarBtn').addEventListener('click', instalarApp);
+document.addEventListener('instalable', pintarInstalar);
+document.addEventListener('instalada', () => { pintarInstalar(); toast('App instalada ✓'); });
+pintarInstalar();

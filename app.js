@@ -470,20 +470,62 @@ function renderStats() {
 }
 
 // ---------- Historial ----------
+const abiertos = new Set();   // compras desplegadas: se mantienen abiertas al corregir algo
+
+const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub' : ''}"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
+  <div class="metas">
+    <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
+    ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>`}
+  </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
+  <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`;
+
+// Una compra = una sola tarjeta con el lugar y el total; el detalle se despliega
+function tarjetaCompra(items) {
+  const id = items[0].compraId, lugar = items[0].lugar || '';
+  const total = items.reduce((t, g) => t + g.monto, 0);
+  return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
+    <summary>
+      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)</small></span></span>
+      <b class="cg-m">${peso(total)}</b>
+    </summary>
+    <div class="cg-det">
+      <div class="cg-acc">
+        <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
+        <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
+      </div>
+      ${items.map(g => filaGasto(g, true)).join('')}
+    </div>
+  </details>`;
+}
+
 function renderHistorial() {
-  const orden = [...gastos].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id));
+  const orden = [...gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));   // estable: dentro del día se conserva el orden de carga
   if (!orden.length) { $('lista').innerHTML = '<div class="vacio"><svg class="ic"><use href="#i-bag"/></svg>Todavía no hay gastos.</div>'; return; }
   const porDia = {};
   orden.forEach(g => (porDia[g.fecha] = porDia[g.fecha] || []).push(g));
-  $('lista').innerHTML = Object.entries(porDia).map(([f, gs]) => `
-    <div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((s, g) => s + g.monto, 0))}</span></div>
-    ${gs.map(g => `<div class="gasto"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
-      <div class="metas">
-        <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
-        <select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
-      </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
-      <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`).join('')}`).join('');
+  $('lista').innerHTML = Object.entries(porDia).map(([f, gs]) => {
+    // dentro de cada día, los gastos de una misma compra se juntan en una sola tarjeta
+    const compras = new Map(), bloques = [];
+    for (const g of gs) {
+      if (!g.compraId) { bloques.push({ g }); continue; }
+      if (!compras.has(g.compraId)) { const c = { items: [] }; compras.set(g.compraId, c); bloques.push(c); }
+      compras.get(g.compraId).items.push(g);
+    }
+    return `<div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((t, g) => t + g.monto, 0))}</span></div>
+      ${bloques.map(b => (b.items ? tarjetaCompra(b.items) : filaGasto(b.g))).join('')}`;
+  }).join('');
 }
+// recuerda qué compras están abiertas (el evento "toggle" no se propaga: se escucha en captura)
+$('lista').addEventListener('toggle', e => {
+  const cid = e.target.dataset && e.target.dataset.cid; if (!cid) return;
+  if (e.target.open) abiertos.add(cid); else abiertos.delete(cid);
+}, true);
+// cambiar el lugar de toda la compra
+$('lista').addEventListener('change', e => {
+  const cid = e.target.dataset.cidLugar; if (!cid) return;
+  gastos.filter(g => g.compraId === cid).forEach(g => { g.lugar = e.target.value; });
+  persistir(); renderHistorial(); toast('Lugar de la compra actualizado');
+});
 // Corregir categoría o lugar de un gasto ya guardado (la categoría corregida se recuerda para el futuro)
 $('lista').addEventListener('change', e => {
   const id = e.target.dataset.gid; if (!id) return;
@@ -509,6 +551,13 @@ $('hReclasificar').addEventListener('click', () => {
   toast(n ? `${n} gasto(s) reclasificado(s)` : 'No hay gastos en «Otros» que pueda reclasificar');
 });
 $('lista').addEventListener('click', e => {
+  const bc = e.target.closest('[data-borrar-compra]');
+  if (bc) {
+    const cid = bc.dataset.borrarCompra, n = gastos.filter(g => g.compraId === cid).length;
+    if (!confirm(`¿Borrar esta compra completa (${n} producto(s))?`)) return;
+    gastos = gastos.filter(g => g.compraId !== cid); abiertos.delete(cid); persistir(); renderHistorial(); toast('Compra borrada');
+    return;
+  }
   const b = e.target.closest('[data-borrar]'); if (!b) return;
   const id = b.dataset.borrar;
   gastos = gastos.filter(g => g.id !== id); persistir(); renderHistorial(); toast('Gasto borrado');
@@ -890,9 +939,10 @@ $('cGuardar').addEventListener('click', () => {
       registros.push({ producto: it.producto, monto, estimado: redondeo(est) });
     });
   } else registros.push({ producto: lugarActual ? 'Compra en ' + lugarActual : 'Compra', monto: total, estimado: 0 });
+  const compraId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   registros.filter(r => r.monto > 0).forEach(r => gastos.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, dolar,
+    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, compraId, dolar,
   }));
   persistir();
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();

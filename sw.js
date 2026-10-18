@@ -1,6 +1,6 @@
 // Subir el número de versión en cada publicación: es lo que dispara el aviso "Actualizar".
-const CACHE = 'gastos-v31';
-const FILES = ['./', './index.html', './style.css', './parser.js', './xlsx.js', './app.js', './manifest.json', './icon.svg'];
+const CACHE = 'gastos-v32';
+const FILES = ['./', './index.html', './style.css', './parser.js', './xlsx.js', './config.js', './respaldo.js', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
   // Sin skipWaiting: la versión nueva queda "en espera" hasta que el usuario toque Actualizar.

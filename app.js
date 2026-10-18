@@ -6,7 +6,8 @@ const cargar = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ??
 let gastos = cargar(LS_GASTOS, []);
 let ajustes = cargar(LS_AJUSTES, {});
 ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', modoIA: 'rapido', confirmar: 'si', dolar: '', ...ajustes };
-const persistir = () => localStorage.setItem(LS_GASTOS, JSON.stringify(gastos));
+// Cada vez que se guardan datos, se avisa al módulo de copia (respaldo.js) para el respaldo automático en Drive
+const persistir = () => { localStorage.setItem(LS_GASTOS, JSON.stringify(gastos)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); };
 
 // ---------- Categorías: el diccionario sugiere y tus correcciones se recuerdan ----------
 const LS_CATS = 'gastos.categorias.v1';
@@ -598,31 +599,27 @@ $('probarIA').addEventListener('click', async () => {
 });
 
 $('exportar').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ gastos, precios }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(construirCopia(), null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `gastos-${hoyISO()}.json`; a.click();
-  URL.revokeObjectURL(a.href);
+  a.href = URL.createObjectURL(blob); a.download = `respaldo-gastos-${hoyISO()}.json`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  localStorage.setItem('gastos.copiaManual.v1', new Date().toISOString()); pintarDrive();
 });
 $('importar').addEventListener('click', () => $('archivo').click());
+// Acepta copias de este tipo (.json o .txt) y también las exportadas por versiones anteriores
 $('archivo').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
     const data = JSON.parse(await f.text());
-    const arr = Array.isArray(data) ? data : data.gastos;
-    if (!Array.isArray(arr)) throw new Error();
-    if (Array.isArray(data.precios)) {
-      data.precios.filter(p => p && p.nombre && p.precio > 0).forEach(p => setPrecio(p.nombre, p.precio, p.unidad));
-    }
-    const ids = new Set(gastos.map(g => g.id));
-    const nuevos = arr.filter(g => g && g.id && g.producto && g.monto > 0 && /^\d{4}-\d{2}-\d{2}$/.test(g.fecha) && !ids.has(g.id));
-    gastos.push(...nuevos); persistir(); renderHoy();
-    toast(`${nuevos.length} gasto(s) importado(s)`);
+    if (!(Array.isArray(data) || Array.isArray(data.gastos))) throw new Error();
+    const r = aplicarCopia(data);
+    toast(`Copia importada: ${r.gastos} gasto(s) y ${r.precios} precio(s) nuevos`);
   } catch { toast('Archivo inválido'); }
   e.target.value = '';
 });
 $('borrarTodo').addEventListener('click', () => {
-  if (!confirm('¿Borrar TODOS los gastos de este dispositivo? No se puede deshacer.')) return;
-  gastos = []; persistir(); renderHoy(); toast('Datos borrados');
+  if (!confirm('¿Borrar TODOS los gastos de este dispositivo? No se puede deshacer.\n\nSi tenés la copia en Drive conectada, esa copia no se borra, pero se reemplaza con los datos nuevos en el próximo guardado.')) return;
+  gastos = []; persistir(); renderHoy(); renderHistorial(); toast('Datos borrados');
 });
 
 // ---------- Compra: lista de precios y carrito ----------
@@ -630,7 +627,7 @@ const LS_PRECIOS = 'gastos.precios.v1';
 const LS_CARRITO = 'gastos.carrito.v1';
 let precios = cargar(LS_PRECIOS, []);   // [{nombre, precio, unidad: 'kg'|'l'|'u'}]
 let carrito = cargar(LS_CARRITO, []);   // [{id, producto, cantidad, unidad, precio, up}]
-const guardarPrecios = () => localStorage.setItem(LS_PRECIOS, JSON.stringify(precios));
+const guardarPrecios = () => { localStorage.setItem(LS_PRECIOS, JSON.stringify(precios)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); };
 const guardarCarrito = () => localStorage.setItem(LS_CARRITO, JSON.stringify(carrito));
 
 const UNIDADES_CANT = ['kg', 'g', 'l', 'ml', 'u'];

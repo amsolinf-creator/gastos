@@ -229,6 +229,8 @@ summary > span:first-child { flex: 1; }
 .acerca { text-align: center; }
 .logo-acerca { width: 210px; max-width: 70%; height: auto; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, .4); margin: 4px auto 10px; display: block; }
 .acerca p { margin: 6px 0; }
+.boton-wsp { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; margin: 12px 0 4px; border-radius: var(--r-s); background: linear-gradient(135deg, #10b981, #34d399); color: #04210f; font-weight: 700; font-size: 16px; text-decoration: none; box-shadow: 0 8px 22px rgba(52, 211, 153, .3); }
+.boton-wsp .ic { width: 22px; height: 22px; stroke-width: 2.2; }
 
 /* Copia de seguridad */
 label.chk { display: flex; align-items: center; gap: 10px; margin-top: 14px; color: var(--text); font-size: 14px; }

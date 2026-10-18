@@ -684,6 +684,11 @@ Para campos que no aplican usá 0. Dictado: """${texto}"""`;
 
 // ---------- Vista previa: lo interpretado se muestra destacado y se registra con un toque ----------
 const confirmarAntes = () => ajustes.confirmar !== 'no';
+
+// REGLA: solo se registra kilo, gramo o litro si se DICTÓ esa medida. Si no, es por unidad.
+// Se aplica al final a todo lo interpretado, también a lo que devuelve la IA.
+const textoTieneMedida = texto => /\b(kilos?|kilogramos?|kgs?|gramos?|grs?|gr|litros?|lts?|lt|mililitros?|ml)\b/.test(sinTildes(String(texto).toLowerCase()));
+const reglaUnidad = (items, texto) => (textoTieneMedida(texto) ? items : items.map(it => ({ ...it, unidad: 'u' })));
 const pend = { carrito: [], precios: [] };   // propuestas todavía sin registrar
 let modoDictActual = 'carrito';
 const fmtCant = n => String(Math.round(n * 1000) / 1000).replace('.', ',');
@@ -737,7 +742,7 @@ function lineaPropuesta(p, modo, i) {
     }
   } else if (p.accion === 'precio') {
     const ex = buscarExacto(p.producto);
-    det = `${ex ? 'actualiza' : 'nuevo'} · ${peso(p.precio)} / ${etq(p.unidad || (ex && ex.unidad) || 'u', p.etiqueta)}`; der = '<span class="tag">precio</span>';
+    det = `${ex ? 'actualiza' : 'nuevo'} · ${peso(p.precio)} / ${etq(p.unidad || 'u', p.etiqueta)}`; der = '<span class="tag">precio</span>';
   } else if (p.accion === 'borrar') {
     const ex = buscarExacto(p.producto) || buscarPrecio(p.producto);
     nombre = ex ? ex.nombre : p.producto; det = ex ? 'se quita de la lista' : 'no está en la lista';
@@ -773,7 +778,7 @@ async function agregarCompra() {
   const texto = $('cTexto').value.trim();
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
   const { items, fuente } = await interpretarRapido({ texto, local: interpretarCompraLocal, conIA: interpretarCompraConIA, boton: $('cAgregar'), estado: $('cEstado') });
-  const lista = resolverCompra(items);
+  const lista = resolverCompra(reglaUnidad(items, texto));
   if (!lista.length) { $('cEstado').textContent = `No entendí nada — interpretado con ${fuente}`; return; }
   $('cTexto').value = '';
   if (confirmarAntes()) {
@@ -915,7 +920,7 @@ async function interpretarPreciosConIA(texto) {
 - "borrar": quitar un producto de la lista. Campo: producto.
 - "borrar_todo": vaciar toda la lista ("borrar toda la lista", "eliminar todo").
 Envases (atado, paquete, bolsa, caja, maple, bandeja, pack, botella, lata, manojo, cabeza) cuentan como unidad "u": poné el envase en "etiqueta" y dejalo fuera de "producto".
-"lucas" = miles ("dos lucas" = 2000). Solo usá kg o l si el dictado dice explícitamente kilo o litro. Si no dice la unidad de un precio, usá la que ya tiene el producto en la lista, o "u" (unidad) si es nuevo.
+"lucas" = miles ("dos lucas" = 2000). Solo usá kg o l si el dictado dice explícitamente kilo o litro. Si no dice la unidad de un precio, usá siempre "u" (unidad), aunque el producto ya figure en la lista con otra unidad.
 Productos actuales (usá exactamente esa escritura si es el mismo producto): ${conocidos}.
 Para campos que no aplican usá 0 o "". Dictado: """${texto}"""`;
   const schema = {
@@ -958,7 +963,7 @@ function aplicarAccionesPrecios(acciones) {
       r.borrados.push(ex.nombre);
     } else if (a.precio > 0) {
       const ex = buscarExacto(a.producto);
-      const unidad = a.unidad || (ex && ex.unidad) || 'u';   // sin "kilo"/"litro" dicho: el producto conserva su unidad, y si es nuevo va por unidad
+      const unidad = a.unidad || 'u';   // sin "kilo"/"litro" dicho, siempre por unidad (aunque el producto estuviera por kilo)
       setPrecio(a.producto, a.precio, unidad, a.etiqueta || (ex && unidad === 'u' ? ex.etiqueta : ''));
       (ex ? r.cambiados : r.nuevos).push(cap(a.producto));
     }
@@ -981,7 +986,7 @@ async function editarPrecios() {
   const texto = $('pTexto').value.trim();
   if (!texto) { toast('Dictá o escribí algo primero'); return; }
   const { items: acciones, fuente } = await interpretarRapido({ texto, local: interpretarPreciosLocal, conIA: interpretarPreciosConIA, boton: $('pAplicar'), estado: $('pEstado') });
-  const validas = acciones.filter(a => a.accion === 'borrar_todo' || (a.producto && (a.accion === 'borrar' || a.precio > 0)));
+  const validas = reglaUnidad(acciones.map(a => (a.accion === 'precio' ? { ...a } : a)), texto).filter(a => a.accion === 'borrar_todo' || (a.producto && (a.accion === 'borrar' || a.precio > 0)));
   if (!validas.length) { $('pEstado').textContent = `No entendí nada — interpretado con ${fuente}`; return; }
   $('pTexto').value = '';
   if (confirmarAntes()) {
@@ -1013,19 +1018,13 @@ $('pBorrarTodo').addEventListener('click', () => {
   precios = []; guardarPrecios(); renderPrecios(); toast('Lista de precios eliminada');
 });
 
-// La unidad se sugiere sola según el producto (rúcula => unidad, leche => litro, tomate => kilo); si la cambiás a mano, se respeta
-let unidadManual = false;
-$('pUni').addEventListener('change', () => (unidadManual = true));
-$('pNom').addEventListener('input', () => {
-  if (!unidadManual && $('pNom').value.trim()) $('pUni').value = sugerirUnidad($('pNom').value);
-});
 $('pAgregar').addEventListener('click', () => {
   const nombre = $('pNom').value.trim(), precio = Number($('pPrecio').value);
   if (!nombre || !(precio > 0)) { toast('Completá producto y precio'); return; }
   const env = sacarEnvase(sinTildes(nombre.toLowerCase()));   // "Rúcula atado" => nombre "rucula" + etiqueta "atado"
   const limpio = env.etiqueta ? cap(sacarEnvase(nombre.toLowerCase()).nombre) : nombre;
   setPrecio(limpio, precio, env.etiqueta ? 'u' : $('pUni').value, env.etiqueta);
-  $('pNom').value = ''; $('pPrecio').value = ''; unidadManual = false; renderPrecios();
+  $('pNom').value = ''; $('pPrecio').value = ''; $('pUni').value = 'u'; renderPrecios();
 });
 
 // Pantalla siempre vertical (refuerzo del "orientation" del manifest; solo aplica con la app instalada)

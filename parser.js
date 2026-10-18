@@ -89,7 +89,7 @@ function fechaISO(d) {
 // se separan para que "cien mil" valga 100000 y no 100.
 function separarNumeros(t) {
   return t.replace(/\b([a-z]+?)(mil|millon|millones)\b/g, (m, p, q) => (esPalabraNum(p) ? p + ' ' + q : m))
-    .replace(/(\d)(mil|millon|millones)\b/g, '$1 $2');
+    .replace(/(\d)(mil|millon|millones|lucas?|k)\b/g, '$1 $2');
 }
 
 // El dictado escribe los miles de varias formas: "40.000", "40 000" (espacio común o especial), "40,000".
@@ -127,7 +127,7 @@ function interpretarLocal(texto, hoy = new Date()) {
       }
       // solo cifras: la primera; palabras o mezcla ("100 mil", "dos mil"): se calcula todo junto
       let monto = corrida.every(esDigitos) ? parseDigitos(corrida[0]) : parsePalabrasNum(corrida);
-      if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { monto *= 1000; j++; }
+      if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { monto *= 1000; j++; if (tokens[j] === 'y' && /^(media|medio)$/.test(tokens[j + 1] || '')) { monto += 500; j += 2; } }
       if (/^(pesos|peso|mangos|mango)$/.test(tokens[j] || '')) j++;
       if (!nombre.length) { // "dos lucas de verdura": el nombre viene después del monto
         while (j < tokens.length && tokens[j] !== ',' && !esDigitos(tokens[j]) && !esPalabraNum(tokens[j])) nombre.push(tokens[j++]);
@@ -165,7 +165,7 @@ function numerosADigitos(t) {
       else break;
     }
     let v = parsePalabrasNum(corrida);
-    if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { v *= 1000; j++; }
+    if (/^(luca|lucas|k)$/.test(tokens[j] || '')) { v *= 1000; j++; if (tokens[j] === 'y' && /^(media|medio)$/.test(tokens[j + 1] || '')) { v += 500; j += 2; } }
     if (/^(pesos|peso|mangos|mango)$/.test(tokens[j] || '')) j++;
     out.push(String(v));
     i = j;

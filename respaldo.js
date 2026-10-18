@@ -159,7 +159,9 @@ const programarSubida = () => { clearTimeout(temporizadorDrive); temporizadorDri
 
 // app.js llama a esta función cada vez que se guardan datos
 function alGuardarDatos() {
-  if (restaurandoCopia || !drive.conectado || drive.auto === false || !idCliente()) return;
+  if (restaurandoCopia) return;
+  avisoPrimerGuardado();
+  if (!drive.conectado || drive.auto === false || !idCliente()) return;
   drive.pendiente = true; guardarDrive(); pintarDrive();
   if (tokenValido()) { programarSubida(); return; }
   // Sin token vigente: se renueva ahora, mientras el toque del usuario sigue "vivo" (si no, el navegador bloquea la ventana)
@@ -237,26 +239,27 @@ function descargarArchivo(file) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 async function enviarCopiaPorWhatsapp() {
-  localStorage.setItem(COPIA_MANUAL_KEY, new Date().toISOString());
   // Algunos celulares no dejan compartir ".json": se prueba también como archivo de texto
   for (const [tipo, ext] of [['application/json', 'json'], ['text/plain', 'txt']]) {
     const file = archivoCopia(tipo, ext);
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Copia de mis gastos', text: 'Copia de seguridad de la app Gastos por voz' });
-        pintarDrive(); return;
+        registrarCopiaManual(); return;
       }
     } catch (e) { if (e && e.name === 'AbortError') return; }
   }
   descargarArchivo(archivoCopia('application/json', 'json'));
   toast('Se descargó la copia: adjuntala en WhatsApp o guardala donde quieras');
-  pintarDrive();
+  registrarCopiaManual();
 }
 
 // ---------- Pantalla ----------
 function pintarDrive() {
   if (!$('driveEstado')) return;
   const hayId = !!idCliente();
+  $('driveBloque').hidden = !hayId;
+  $('tituloManual').textContent = hayId ? 'Copia manual' : 'Copia de seguridad';
   $('driveConectar').hidden = drive.conectado;
   $('driveAcciones').hidden = !drive.conectado;
   $('driveAuto').checked = drive.auto !== false;
@@ -288,11 +291,88 @@ $('copiaWsp').addEventListener('click', enviarCopiaPorWhatsapp);
 document.querySelector('nav button[data-t=ajustes]').addEventListener('click', () => { if (idCliente()) cargarGIS().catch(() => {}); pintarDrive(); });
 if (drive.conectado && idCliente()) cargarGIS().catch(() => {});
 
-// Recordatorio mensual si no hay copia en Drive y la última copia manual es vieja
-setTimeout(() => {
-  if (drive.conectado || !gastos.length) return;
-  const u = localStorage.getItem(COPIA_MANUAL_KEY), dias = u ? (Date.now() - new Date(u)) / 86400000 : 999;
-  if (dias > 30) toast('Hace un tiempo que no guardás una copia: Ajustes → Copia de seguridad');
-}, 4000);
-
 pintarDrive();
+
+// ---------- Ventana de avisos (bienvenida, datos) ----------
+function mostrarModal({ logo = false, titulo, html, ok, sec, alOk, alSec }) {
+  $('modalLogo').hidden = !logo;
+  $('modalTitulo').textContent = titulo; $('modalTexto').innerHTML = html;
+  $('modalOk').textContent = ok; $('modalSec').hidden = !sec; if (sec) $('modalSec').textContent = sec;
+  const cerrar = () => { $('modal').hidden = true; };
+  $('modalOk').onclick = () => { cerrar(); if (alOk) alOk(); };
+  $('modalSec').onclick = () => { cerrar(); if (alSec) alSec(); };
+  $('modal').hidden = false;
+}
+
+function mostrarBienvenida() {
+  if (localStorage.getItem('gastos.bienvenida.v1') || gastos.length) return;
+  mostrarModal({
+    logo: true, titulo: 'Bienvenido a Gastos por voz',
+    html: '<ol class="pasos"><li>Dictá lo que vas comprando: <i>“dos kilos de tomate”</i>.</li><li>Revisá lo que entendió y tocá <b>✓</b>.</li><li>Al final, cargá el total de la caja y tocá <b>Guardar compra</b>.</li></ol><p class="hint">Tus datos se guardan solo en este celular. Hacé una copia de vez en cuando desde Ajustes.</p>',
+    ok: 'Empezar', alOk: () => localStorage.setItem('gastos.bienvenida.v1', '1'),
+  });
+}
+
+// La primera vez que se guarda algo: se explica dónde viven los datos
+function avisoPrimerGuardado() {
+  if (!gastos.length || localStorage.getItem('gastos.avisoDatos.v1')) return;
+  localStorage.setItem('gastos.avisoDatos.v1', '1');
+  protegerAlmacenamiento();
+  if (drive.conectado) return;
+  setTimeout(() => { if ($('modal').hidden) mostrarModal({
+    titulo: 'Tus datos viven en este celular',
+    html: '<p>Si borrás los datos del navegador o desinstalás la app, <b>se pierden los gastos</b>.</p><p>Con una copia los podés recuperar. Te la envío por WhatsApp con un toque.</p>',
+    ok: 'Enviar copia ahora', sec: 'Más tarde', alOk: enviarCopiaPorWhatsapp,
+  }); }, 1400);
+}
+
+// ---------- Recordatorio de copia (cada 14 días o cada 20 gastos nuevos) ----------
+const REC_SNOOZE = 'gastos.recSnooze.v1', COPIA_CANT = 'gastos.copiaCantidad.v1', REC_TOAST = 'gastos.recToast.v1';
+function registrarCopiaManual() {
+  localStorage.setItem(COPIA_MANUAL_KEY, new Date().toISOString());
+  localStorage.setItem(COPIA_CANT, String(gastos.length));
+  pintarDrive(); pintarRecordatorio();
+}
+function debeRecordarCopia() {
+  if (drive.conectado || gastos.length < 5) return false;
+  if (Date.now() < Number(localStorage.getItem(REC_SNOOZE) || 0)) return false;
+  const u = localStorage.getItem(COPIA_MANUAL_KEY), dias = u ? (Date.now() - new Date(u)) / 86400000 : Infinity;
+  return dias > 14 || gastos.length - Number(localStorage.getItem(COPIA_CANT) || 0) >= 20;
+}
+function pintarRecordatorio() {
+  const ver = debeRecordarCopia();
+  $('recordatorioCopia').hidden = !ver;
+  if (!ver) return;
+  const u = localStorage.getItem(COPIA_MANUAL_KEY), n = gastos.length - Number(localStorage.getItem(COPIA_CANT) || 0);
+  $('recordatorioTxt').textContent = u
+    ? `Última copia: ${fmtMomento(u)} · desde entonces cargaste ${n} gasto(s) más.`
+    : `Todavía no hiciste ninguna copia y ya tenés ${gastos.length} gastos cargados.`;
+}
+$('recMas').addEventListener('click', () => { localStorage.setItem(REC_SNOOZE, String(Date.now() + 7 * 86400000)); pintarRecordatorio(); });
+$('recEnviar').addEventListener('click', enviarCopiaPorWhatsapp);
+document.querySelector('nav button[data-t=historial]').addEventListener('click', pintarRecordatorio);
+
+// ---------- Almacenamiento protegido: se le pide al celular que no borre los datos por falta de espacio ----------
+async function protegerAlmacenamiento() {
+  let ok = false;
+  try { if (navigator.storage && navigator.storage.persist) ok = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch {}
+  localStorage.setItem('gastos.persistido', ok ? '1' : '0');
+  pintarPersist(); return ok;
+}
+function pintarPersist() {
+  if (!$('persistInfo')) return;
+  $('persistInfo').textContent = localStorage.getItem('gastos.persistido') === '1'
+    ? 'El celular marcó estos datos como protegidos contra el borrado automático por falta de espacio.'
+    : 'Si el celular se queda sin espacio, podría borrar estos datos. Una copia de seguridad los protege.';
+}
+
+// ---------- Inicio ----------
+protegerAlmacenamiento();
+setTimeout(mostrarBienvenida, 700);
+setTimeout(() => {   // un solo aviso por día como máximo
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (debeRecordarCopia() && localStorage.getItem(REC_TOAST) !== hoy) { localStorage.setItem(REC_TOAST, hoy); toast('Hacé una copia de tus gastos: Historial o Ajustes'); }
+}, 4000);
+obtenerVersion(navigator.serviceWorker && navigator.serviceWorker.controller).then(v => {
+  const el = $('versionApp'); if (el) el.textContent = v ? 'Versión ' + (v.match(/\d+/) || [v])[0] : '';
+});

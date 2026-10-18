@@ -10,6 +10,11 @@
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Chrome avisa que la app se puede instalar con este evento; se guarda para ofrecer el botón "Instalar ahora"
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__instalar = e; document.dispatchEvent(new Event('instalable')); });
+    window.addEventListener('appinstalled', () => { window.__instalar = null; document.dispatchEvent(new Event('instalada')); });
+  </script>
 </head>
 <body data-tab="compra">
   <!-- Íconos de línea reutilizables -->
@@ -165,6 +170,11 @@
     <!-- AJUSTES -->
     <section id="tab-ajustes" class="tab">
       <h1>Ajustes</h1>
+      <div id="instalarApp" class="panel" hidden>
+        <b>Instalá la app en tu celular</b>
+        <p id="instalarTxt" class="hint"></p>
+        <button id="instalarBtn" class="primary" hidden>Instalar ahora</button>
+      </div>
       <h2>Inteligencia artificial</h2>
       <p class="hint">Podés usar una o las dos IAs gratuitas. Si la principal falla, la app prueba la otra, y si ninguna responde usa un intérprete local por reglas. Las claves se guardan solo en este dispositivo.</p>
       <label>Antes de registrar

@@ -881,6 +881,7 @@ $('cGuardar').addEventListener('click', () => {
   }));
   persistir();
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
+  cambiarLugar('');   // la próxima compra arranca con el lugar "Sin especificar"
   toast(`Compra guardada: ${peso(total)}`);
 });
 

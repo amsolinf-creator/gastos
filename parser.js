@@ -259,7 +259,7 @@ const BORRAR_TODO = /^(?:todo|todos|toda|todas)\b|\b(?:toda|todo|completa|entera
 // Devuelve acciones: { accion: 'precio', producto, precio, unidad|null, etiqueta } | { accion: 'borrar', producto } | { accion: 'borrar_todo' }
 // unidad null = que la app decida (la que ya tenía el producto, o la más probable)
 function interpretarPreciosLocal(texto) {
-  const t = numerosADigitos(sinTildes(texto.toLowerCase()).replace(/\$/g, ' '));
+  const t = numerosADigitos(normMedidas(sinTildes(texto.toLowerCase())).replace(/\$/g, ' '));
   const acciones = [];
   let dudosos = 0;
   for (let seg of t.split(/\s*(?:,|\by\b|\bmas\b|\btambien\b)\s*/)) {
@@ -288,8 +288,11 @@ function interpretarPreciosLocal(texto) {
   return res;
 }
 
+// "kilogramo(s)" se trata igual que "kilo(s)"
+const normMedidas = t => t.replace(/\bkilogramos\b/g, 'kilos').replace(/\bkilogramo\b/g, 'kilo');
+
 function interpretarCompraLocal(texto) {
-  let t = sinTildes(texto.toLowerCase()).replace(/\$/g, ' ');
+  let t = normMedidas(sinTildes(texto.toLowerCase())).replace(/\$/g, ' ');
   t = t.replace(/\b(?:tres cuartos|3\/4)(?: de)? kilos?\b/g, '0.75 kilo')
        .replace(/\b(?:un )?cuarto(?: de)? kilos?\b/g, '0.25 kilo')
        .replace(/\b(?:un )?kilo y medio\b/g, '1.5 kilos')

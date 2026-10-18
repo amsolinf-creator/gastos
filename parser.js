@@ -214,7 +214,8 @@ function normUnidad(u) {
 }
 
 function limpiarNombre(n) {
-  return n.replace(/\b(el|la|los|las|un|una|unos|unas|de|del|por|que|con)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  return n.replace(/\b(el|la|los|las|un|una|unos|unas|de|del|por|que|con)\b/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^(?:en|a|al)\s+/, '').replace(/\s+(?:en|a|al)$/, '');   // "tomate en 1300" => "tomate"
 }
 
 function parseSegmento(s) {

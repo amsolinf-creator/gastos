@@ -207,6 +207,20 @@ summary > span:first-child { flex: 1; }
 .gasto .der { display: flex; align-items: center; gap: 2px; }
 .gasto .der button { background: transparent; color: var(--mute); padding: 0; width: 30px; min-height: 30px; display: grid; place-items: center; }
 .metas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+/* Compra agrupada en el historial */
+details.compra-g { margin-top: 8px; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.compra-g > summary { padding: 14px; gap: 10px; }
+.compra-g > summary::after { margin: 0 2px 3px 4px; flex: none; }
+.cg-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.cg-t > span b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.cg-t small { display: block; color: var(--mute); font-size: 12.5px; }
+.cg-ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: rgba(108, 140, 255, .16); color: var(--accent-2); flex: none; font-style: normal; }
+.cg-m { font-size: 19px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.cg-det { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+.cg-acc { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 2px 2px; }
+.cg-del { min-height: 32px; padding: 0 12px; font-size: 12.5px; background: transparent; border: 1px solid rgba(251, 113, 133, .35); color: var(--danger); border-radius: 999px; }
+.gasto.sub { background: rgba(255, 255, 255, .03); border-color: transparent; padding: 10px 12px; }
 .mini { width: auto; max-width: 46vw; min-height: 28px; padding: 0 22px 0 10px; font-size: 12px; border-radius: 999px; background-position: right 8px center; background-color: var(--field); }
 
 /* ---------- Navegación y avisos ---------- */

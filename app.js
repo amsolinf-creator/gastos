@@ -476,16 +476,17 @@ const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub'
   <div class="metas">
     <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
     ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>`}
-  </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}</div>
+  </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}${enCompra && g.estimado && Math.abs(g.estimado - g.monto) > 1 ? `<small>precio estimado ${peso(g.estimado)}</small>` : ''}</div>
   <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`;
 
 // Una compra = una sola tarjeta con el lugar y el total; el detalle se despliega
 function tarjetaCompra(items) {
   const id = items[0].compraId, lugar = items[0].lugar || '';
   const total = items.reduce((t, g) => t + g.monto, 0);
+  const estimadoTotal = items.every(g => g.estimado > 0) ? items.reduce((t, g) => t + g.estimado, 0) : 0;
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)</small></span></span>
+      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}</small></span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
@@ -925,6 +926,14 @@ $('cGuardar').addEventListener('click', () => {
   if (!total) {
     if (!confirm(`No cargaste el total que marca la caja.\n¿Guardar con el total estimado (${peso(estimado)})?`)) { $('cCaja').focus(); return; }
     total = estimado;
+  }
+  // Protección: si lo escrito en la caja se aleja mucho del estimado, se pide confirmar (evita errores como 450 en vez de 4500)
+  if (Number($('cCaja').value) > 0 && estimado > 0) {
+    const caja = Number($('cCaja').value), razon = caja / estimado;
+    if (razon < 0.6 || razon > 1.6) {
+      const pista = Math.abs(caja * 10 - estimado) / estimado < 0.25 ? '\n¿Falta un cero?' : (Math.abs(caja / 10 - estimado) / estimado < 0.25 ? '\n¿Sobra un cero?' : '');
+      if (!confirm(`El total de la caja (${peso(caja)}) es muy distinto del estimado (${peso(estimado)}).${pista}\n\n¿Guardar la compra con ${peso(caja)}?`)) { $('cCaja').focus(); return; }
+    }
   }
   const dolar = Number(ajustes.dolar) || null;
   const fecha = hoyISO();

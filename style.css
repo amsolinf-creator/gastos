@@ -208,6 +208,12 @@ summary > span:first-child { flex: 1; }
 .gasto .der button { background: transparent; color: var(--mute); padding: 0; width: 30px; min-height: 30px; display: grid; place-items: center; }
 .metas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
+/* Copia de seguridad */
+label.chk { display: flex; align-items: center; gap: 10px; margin-top: 14px; color: var(--text); font-size: 14px; }
+label.chk input { width: 22px; height: 22px; min-height: 0; margin: 0; flex: none; accent-color: var(--accent-2); }
+.aviso-txt { color: var(--warn); background: rgba(251, 191, 36, .1); padding: 8px 12px; border-radius: 12px; }
+#drivePanel details { margin-top: 14px; background: transparent; padding: 10px 12px; }
+
 /* Reporte en Excel */
 details.reporte { margin: 0 0 12px; }
 #repRango input { min-width: 0; flex: 1; padding: 0 10px; font-size: 15px; }

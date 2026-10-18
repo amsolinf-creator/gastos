@@ -747,7 +747,7 @@ const confirmarAntes = () => ajustes.confirmar !== 'no';
 
 // REGLA: solo se registra kilo, gramo o litro si se DICTÓ esa medida. Si no, es por unidad.
 // Se aplica al final a todo lo interpretado, también a lo que devuelve la IA.
-const textoTieneMedida = texto => /\b(kilos?|kilogramos?|kgs?|gramos?|grs?|gr|litros?|lts?|lt|mililitros?|ml)\b/.test(sinTildes(String(texto).toLowerCase()));
+const textoTieneMedida = texto => /\b(kilos?|kilogramos?|kgs?|gramos?|grs?|gr|g|litros?|lts?|lt|l|mililitros?|ml)\b/.test(sinTildes(String(texto).toLowerCase()));
 const reglaUnidad = (items, texto) => (textoTieneMedida(texto) ? items : items.map(it => ({ ...it, unidad: 'u' })));
 const pend = { carrito: [], precios: [] };   // propuestas todavía sin registrar
 let modoDictActual = 'carrito';
@@ -767,7 +767,12 @@ function resolverCompra(items) {
       const ex = buscarPrecio(it.producto);
       if (ex) { precio = ex.precio; up = ex.unidad; nombre = ex.nombre; }   // usa el nombre de tu lista ("Shampoo sedal")
     }
-    out.push({ tipo: 'compra', producto: nombre, original: it.producto, cantidad: it.cantidad || 1, unidad: it.unidad, precio, up, guardarPrecio: !!(it.precio > 0 && it.guardarPrecio), etiqueta: it.etiqueta || '' });
+    // El precio de la lista es por kilo/litro y se dictó un número grande sin medida ("250 de brócoli"): son gramos/ml
+    let unidad = it.unidad;
+    if (unidad === 'u' && !it.etiqueta && (it.cantidad || 1) >= 50 && !(it.precio > 0)) {
+      if (up === 'kg') unidad = 'g'; else if (up === 'l') unidad = 'ml';
+    }
+    out.push({ tipo: 'compra', producto: nombre, original: it.producto, cantidad: it.cantidad || 1, unidad, precio, up, guardarPrecio: !!(it.precio > 0 && it.guardarPrecio), etiqueta: it.etiqueta || '' });
   }
   return out;
 }

@@ -58,6 +58,7 @@ const reiniciarCuotas = c => { const i = c && c.querySelector('[data-p=cuotas]')
 const conPago = pago => (pago && pago.medio ? { pago: { ...pago } } : {});
 
 // ---------- Cálculo de cuotas ----------
+const esCredito = p => !!p && /cr[eé]dito/i.test(String(p.medio || ''));
 const mesDeFecha = f => { const [y, m] = f.split('-').map(Number); return y * 12 + (m - 1); };
 const etqMes = k => `${MESES[k % 12].slice(0, 3)} ${Math.floor(k / 12)}`;
 const mesActualK = () => { const d = new Date(); return d.getFullYear() * 12 + d.getMonth(); };
@@ -66,11 +67,11 @@ const mesActualK = () => { const d = new Date(); return d.getFullYear() * 12 + d
 function planesCuotas() {
   const m = new Map(), cur = mesActualK();
   for (const g of gastos) {
-    if (!g.pago || g.pago.medio !== CREDITO || !g.pago.tarjeta) continue;
+    if (!esCredito(g.pago) || !g.pago.tarjeta) continue;
     const k = g.compraId || g.id;
     let p = m.get(k);
     if (!p) { p = { key: k, tarjeta: g.pago.tarjeta, cuotas: Math.max(1, g.pago.cuotas || 1), fecha: g.fecha, lugar: g.lugar || '', total: 0, nombres: [] }; m.set(k, p); }
-    p.total += g.monto; p.nombres.push(g.producto);
+    p.total += Number(g.monto) || 0; p.nombres.push(g.producto);
   }
   return [...m.values()].map(p => {
     const t = tarjetas.find(x => x.nombre === p.tarjeta);
@@ -142,6 +143,10 @@ $('misTarjetas').addEventListener('change', e => {
 
 // ---------- Pantalla de Cuotas ----------
 function renderCuotas() {
+  try { renderCuotasInterno(); }
+  catch (e) { $('cuotasCont').innerHTML = `<div class="vacio">No pude armar la pantalla de cuotas.<br><small>${esc(e && e.message || e)}</small></div>`; }
+}
+function renderCuotasInterno() {
   const planes = planesCuotas(), cur = mesActualK();
   const nombres = [...new Set([...tarjetas.map(t => t.nombre), ...planes.map(p => p.tarjeta)])];
   const delMes = planes.reduce((t, p) => t + cuotaDelMes(p, cur), 0);
@@ -174,6 +179,9 @@ function renderCuotas() {
       ${cerrados.length ? `<details class="tj-ter"><summary>Terminadas (${cerrados.length})</summary>${cerrados.map(fila).join('')}</details>` : ''}
     </div>`;
   }
+  // aviso si hay gastos pagados con tarjeta que no se pueden contar (falta elegir cuál)
+  const sinTarjeta = gastos.filter(g => esCredito(g.pago) && !g.pago.tarjeta).length;
+  if (sinTarjeta) h += `<p class="hint" style="margin-top:14px">⚠ Hay ${sinTarjeta} gasto(s) pagado(s) con tarjeta de crédito sin indicar cuál. Abrilos en el Historial, tocá el medio de pago y elegí la tarjeta.</p>`;
   if (!nombres.length) h += '<div class="vacio"><svg class="ic"><use href="#i-card"/></svg>Todavía no cargaste compras con tarjeta de crédito.<br>Al registrar un gasto elegí «Tarjeta de crédito» como medio de pago.</div>';
   h += '<button id="tjNueva" class="ghost" style="width:100%;margin-top:14px">➕ Agregar tarjeta</button><button id="tjAdmin" class="ghost" style="width:100%;margin-top:8px">Administrar mis tarjetas</button>';
   $('cuotasCont').innerHTML = h;

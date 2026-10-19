@@ -27,7 +27,7 @@ function aplicarCopia(d) {
   restaurandoCopia = true;
   try {
     const ids = new Set(gastos.map(g => g.id));
-    const nuevos = (d.gastos || []).filter(g => g && g.id && g.producto && g.monto > 0 && /^\d{4}-\d{2}-\d{2}$/.test(g.fecha) && !ids.has(g.id));
+    const nuevos = (d.gastos || []).filter(g => g && g.id && g.producto && Number.isFinite(g.monto) && g.monto !== 0 && /^\d{4}-\d{2}-\d{2}$/.test(g.fecha) && !ids.has(g.id));
     const estabaVacio = !gastos.length;
     gastos.push(...nuevos); persistir();
     let nPrecios = 0;

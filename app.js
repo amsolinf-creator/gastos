@@ -485,9 +485,10 @@ function tarjetaCompra(items) {
   const id = items[0].compraId, lugar = items[0].lugar || '';
   const total = items.reduce((t, g) => t + g.monto, 0);
   const estimadoTotal = items.every(g => g.estimado > 0) ? items.reduce((t, g) => t + g.estimado, 0) : 0;
+  const conciliada = items.every(g => g.conTicket);
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}</small></span></span>
+      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}</small></span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
@@ -495,6 +496,7 @@ function tarjetaCompra(items) {
         <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
         <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
       </div>
+      <button class="cg-conc" data-conciliar="${id}"><svg class="ic ic-s"><use href="#i-camera"/></svg> ${conciliada ? 'Volver a conciliar con el ticket' : 'Conciliar con el ticket'}</button>
       ${items.map(g => filaGasto(g, true)).join('')}
     </div>
   </details>`;
@@ -1151,11 +1153,11 @@ function armarHojas(lista, r) {
     ],
   };
 
-  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
-  const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '']
+  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado', 'Origen del monto'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
+  const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '', g.conTicket ? 'Ticket' : (g.compraId ? 'Estimado (total de la caja)' : 'Gasto directo')]
     .concat(hayUsd ? [g.dolar ? xNum(redondeo(g.monto / g.dolar), 0) : ''] : []));
   const gastosHoja = {
-    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 10], filtro: true, filtroHasta: lista.length + 1,
+    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 24, 10], filtro: true, filtroHasta: lista.length + 1,
     filas: [encG, ...filasG, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${lista.length + 1})`, redondeo(total), EST.totalDinero)]],
   };
 

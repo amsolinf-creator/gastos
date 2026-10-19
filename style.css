@@ -342,3 +342,10 @@ nav button.on .ic { filter: drop-shadow(0 0 8px rgba(34, 211, 238, .5)); }
 .plan .pista i { display: block; height: 100%; background: var(--accent-2); border-radius: 4px; }
 .tj-ter { margin-top: 12px; } .tj-ter summary { color: var(--mute); cursor: pointer; font-size: 14px; }
 nav button span { font-size: 10px; }
+
+/* Mis tarjetas */
+.mt-fila { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.mt-t b { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; } .mt-t small { display: block; color: var(--mute); font-size: 12.5px; margin-top: 2px; }
+.mt-acc { display: flex; gap: 8px; margin-top: 10px; } .mt-acc button { flex: 1; margin: 0; min-height: 44px; }
+.mt-acc .del { color: #fb7185; border-color: rgba(251, 113, 133, .4); }
+.mt-nueva { display: flex; gap: 8px; } .mt-nueva input { flex: 1; min-width: 0; } .mt-nueva button { margin: 0; }

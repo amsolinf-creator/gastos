@@ -18,7 +18,7 @@ let restaurandoCopia = false;
 function construirCopia() {
   // Las claves de IA no se guardan en la copia: son personales y se vuelven a pegar en Ajustes.
   const { apiKey, groqKey, modelo, groqModelo, ...seguros } = ajustes;
-  return { app: 'gastos-por-voz', version: 2, creado: new Date().toISOString(), gastos, precios, lugares, categoriasAprendidas: catsAprendidas, ajustes: seguros };
+  return { app: 'gastos-por-voz', version: 2, creado: new Date().toISOString(), gastos, precios, lugares, tarjetas, categoriasAprendidas: catsAprendidas, ajustes: seguros };
 }
 
 // Combina una copia con lo que hay en este celular, sin duplicar ni pisar lo existente
@@ -37,6 +37,8 @@ function aplicarCopia(d) {
     precios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')); guardarPrecios();
     for (const l of d.lugares || []) if (typeof l === 'string' && l && !lugares.some(x => x.toLowerCase() === l.toLowerCase())) lugares.push(l);
     localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
+    for (const t of d.tarjetas || []) if (t && t.nombre && !tarjetas.some(x => x.nombre.toLowerCase() === String(t.nombre).toLowerCase())) tarjetas.push({ nombre: String(t.nombre), desde: t.desde === 1 ? 1 : 0 });
+    guardarTarjetas(); pintarTodosLosPagos(); renderCuotas();
     catsAprendidas = { ...(d.categoriasAprendidas || {}), ...catsAprendidas };
     localStorage.setItem(LS_CATS, JSON.stringify(catsAprendidas));
     if (estabaVacio && d.ajustes) {   // celular nuevo: se recuperan también las preferencias (no las claves)

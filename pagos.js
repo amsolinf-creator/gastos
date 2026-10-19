@@ -5,11 +5,11 @@ const LS_TARJETAS = 'gastos.tarjetas.v1';
 const LS_PAGO = 'gastos.pago.v1';
 let tarjetas = cargar(LS_TARJETAS, []);   // [{ nombre, desde }]  desde: 0 = la 1ª cuota cae el mes de la compra, 1 = el mes siguiente
 let pagoUlt = { medio: '', tarjeta: '', ...cargar(LS_PAGO, {}) };   // lo último que elegiste: se sugiere en la próxima compra
-const guardarTarjetas = () => { localStorage.setItem(LS_TARJETAS, JSON.stringify(tarjetas)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); };
+const guardarTarjetas = () => { localStorage.setItem(LS_TARJETAS, JSON.stringify(tarjetas)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); if (typeof renderMisTarjetas === 'function') renderMisTarjetas(); };
 const guardarPagoUlt = () => { try { localStorage.setItem(LS_PAGO, JSON.stringify(pagoUlt)); } catch {} };
 
-function agregarTarjeta() {
-  const n = (prompt('Nombre de la tarjeta (ej: Cordobesa, Visa Galicia)') || '').trim();
+function agregarTarjeta(texto) {
+  const n = (texto !== undefined ? texto : (prompt('Nombre de la tarjeta (ej: Cordobesa, Visa Galicia)') || '')).trim();
   if (!n) return '';
   const ya = tarjetas.find(t => t.nombre.toLowerCase() === n.toLowerCase());
   if (ya) return ya.nombre;
@@ -87,6 +87,59 @@ function planesCuotas() {
 }
 const cuotaDelMes = (p, k) => (k >= p.ini && k <= p.fin ? p.valor : 0);
 
+// ---------- Mis tarjetas (Ajustes): ver, agregar, renombrar y quitar ----------
+const usosTarjeta = nom => new Set(gastos.filter(g => g.pago && g.pago.tarjeta === nom).map(g => g.compraId || g.id)).size;
+function renderMisTarjetas() {
+  const c = $('misTarjetas'); if (!c) return;
+  c.innerHTML = (tarjetas.length ? tarjetas.map((t, i) => {
+    const n = usosTarjeta(t.nombre);
+    return `<div class="mt-fila"><div class="mt-t"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(t.nombre)}</b><small>${n ? n + ' compra(s) con esta tarjeta' : 'Sin compras todavía'}</small></div>
+      <div class="mt-acc"><button class="ghost" data-mt-ren="${i}">Renombrar</button><button class="ghost del" data-mt-del="${i}">Quitar</button></div>
+      <label class="mt-conf">Primera cuota de cada compra
+        <select data-mt-desde="${i}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label></div>`;
+  }).join('') : '<p class="hint" style="margin:0 0 4px">Todavía no cargaste ninguna tarjeta. Agregá las que usás y después las elegís con un toque al registrar un gasto.</p>')
+    + `<div class="mt-nueva"><input id="mtNombre" type="text" placeholder="Nombre (ej: Cordobesa, Visa Galicia)" maxlength="40"><button id="mtAgregar" class="primary">Agregar</button></div>`;
+}
+function renombrarTarjeta(i) {
+  const t = tarjetas[i]; if (!t) return;
+  const n = (prompt('Nuevo nombre de la tarjeta', t.nombre) || '').trim();
+  if (!n || n === t.nombre) return;
+  const otra = tarjetas.find((x, j) => j !== i && x.nombre.toLowerCase() === n.toLowerCase());
+  if (otra && !confirm(`Ya tenés una tarjeta «${otra.nombre}». ¿Unirlas? Los gastos de «${t.nombre}» pasarán a «${otra.nombre}».`)) return;
+  const nuevo = otra ? otra.nombre : n.charAt(0).toUpperCase() + n.slice(1), viejo = t.nombre;
+  let cambiados = 0;
+  for (const g of gastos) if (g.pago && g.pago.tarjeta === viejo) { g.pago.tarjeta = nuevo; cambiados++; }
+  if (otra) tarjetas.splice(i, 1); else t.nombre = nuevo;
+  if (pagoUlt.tarjeta === viejo) { pagoUlt.tarjeta = nuevo; guardarPagoUlt(); }
+  guardarTarjetas(); if (cambiados) persistir();
+  pintarTodosLosPagos(); renderCuotas(); renderHistorial();
+  toast(cambiados ? `Tarjeta renombrada (${cambiados} gasto(s) actualizados)` : 'Tarjeta renombrada');
+}
+$('misTarjetas').addEventListener('click', e => {
+  if (e.target.closest('#mtAgregar')) {
+    const inp = $('mtNombre'), n = inp.value.trim();
+    if (!n) { toast('Escribí el nombre de la tarjeta'); inp.focus(); return; }
+    const ya = tarjetas.some(t => t.nombre.toLowerCase() === n.toLowerCase());
+    agregarTarjeta(n); pintarTodosLosPagos(); renderCuotas(); toast(ya ? 'Esa tarjeta ya estaba cargada' : 'Tarjeta agregada');
+    return;
+  }
+  const r = e.target.closest('[data-mt-ren]'); if (r) { renombrarTarjeta(+r.dataset.mtRen); return; }
+  const d = e.target.closest('[data-mt-del]');
+  if (d) {
+    const t = tarjetas[+d.dataset.mtDel]; if (!t) return;
+    const n = usosTarjeta(t.nombre);
+    if (!confirm(`¿Quitar la tarjeta ${t.nombre} de la lista?${n ? '\nLas ' + n + ' compra(s) ya cargadas se mantienen y siguen apareciendo en Cuotas.' : ''}`)) return;
+    tarjetas.splice(+d.dataset.mtDel, 1); guardarTarjetas();
+    if (pagoUlt.tarjeta === t.nombre) { pagoUlt.tarjeta = ''; guardarPagoUlt(); }
+    pintarTodosLosPagos(); renderCuotas();
+  }
+});
+$('misTarjetas').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'mtNombre') { e.preventDefault(); $('mtAgregar').click(); } });
+$('misTarjetas').addEventListener('change', e => {
+  const i = e.target.dataset.mtDesde; if (i === undefined || !tarjetas[+i]) return;
+  tarjetas[+i].desde = Number(e.target.value) === 1 ? 1 : 0; guardarTarjetas(); renderCuotas();
+});
+
 // ---------- Pantalla de Cuotas ----------
 function renderCuotas() {
   const planes = planesCuotas(), cur = mesActualK();
@@ -122,11 +175,12 @@ function renderCuotas() {
     </div>`;
   }
   if (!nombres.length) h += '<div class="vacio"><svg class="ic"><use href="#i-card"/></svg>Todavía no cargaste compras con tarjeta de crédito.<br>Al registrar un gasto elegí «Tarjeta de crédito» como medio de pago.</div>';
-  h += '<button id="tjNueva" class="ghost" style="width:100%;margin-top:14px">➕ Agregar tarjeta</button>';
+  h += '<button id="tjNueva" class="ghost" style="width:100%;margin-top:14px">➕ Agregar tarjeta</button><button id="tjAdmin" class="ghost" style="width:100%;margin-top:8px">Administrar mis tarjetas</button>';
   $('cuotasCont').innerHTML = h;
 }
 
 $('cuotasCont').addEventListener('click', e => {
+  if (e.target.closest('#tjAdmin')) { document.querySelector('nav button[data-t=ajustes]').click(); $('misTarjetas').scrollIntoView({ block: 'start' }); return; }
   if (e.target.closest('#tjNueva')) { if (agregarTarjeta()) { renderCuotas(); pintarTodosLosPagos(); } return; }
   const q = e.target.closest('[data-tj-quitar]');
   if (q) {
@@ -166,5 +220,7 @@ $('lista').addEventListener('click', e => {
 });
 
 document.querySelector('nav button[data-t=cuotas]').addEventListener('click', renderCuotas);
+document.querySelector('nav button[data-t=ajustes]').addEventListener('click', renderMisTarjetas);
+renderMisTarjetas();
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => { if (b.dataset.t === 'compra' || b.dataset.t === 'registrar') pintarTodosLosPagos(); }));
 pintarTodosLosPagos();

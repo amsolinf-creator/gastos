@@ -1,9 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Icono app control de gastos - variante 2</title>
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6c8cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
-    <radialGradient id="b" cx=".5" cy="0" r="1"><stop offset="0" stop-color="#1b2a66"/><stop offset="1" stop-color="#0a0f1f"/></radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6A42F5"/>
+      <stop offset="1" stop-color="#34188F"/>
+    </linearGradient>
+    <clipPath id="coin"><circle cx="512" cy="512" r="280"/></clipPath>
   </defs>
-  <rect width="512" height="512" fill="url(#b)"/>
-  <rect x="198" y="92" width="116" height="196" rx="58" fill="url(#g)"/>
-  <path d="M138 252a118 118 0 0 0 236 0M256 370v56M200 426h112" stroke="url(#g)" stroke-width="28" fill="none" stroke-linecap="round"/>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <g clip-path="url(#coin)">
+    <rect x="232" y="232" width="280" height="560" fill="#FFFFFF"/>
+    <g fill="#C6F135">
+      <rect x="566" y="540" width="64" height="300" rx="14"/>
+      <rect x="656" y="420" width="64" height="420" rx="14"/>
+      <rect x="746" y="300" width="64" height="540" rx="14"/>
+    </g>
+  </g>
+  <g transform="translate(-135 0)" fill="none" stroke="#4A2BC4" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M566 455C566 415 458 412 458 475C458 530 566 500 566 565C566 625 456 620 456 575"/>
+    <path d="M512 395V635"/>
+  </g>
 </svg>

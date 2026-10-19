@@ -307,3 +307,13 @@ nav button.on .ic { filter: drop-shadow(0 0 8px rgba(34, 211, 238, .5)); }
 
 #toast { position: fixed; bottom: calc(var(--nav-h, 64px) + 78px); left: 50%; transform: translateX(-50%); background: rgba(24, 34, 74, .96); color: var(--text); border: 1px solid var(--line); padding: 11px 18px; border-radius: 999px; font-size: 14px; max-width: 90%; text-align: center; box-shadow: var(--shadow); z-index: 40; }
 #toast[hidden] { display: none; }
+
+/* Recorte de la foto del ticket */
+.rc-caja { background: #000; border-radius: 12px; padding: 10px 0; margin: 10px 0; }
+.rc-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; overflow: hidden; touch-action: none; user-select: none; }
+.rc-wrap canvas { display: block; max-width: 100%; max-height: 58vh; width: auto; height: auto; }
+.rc-marco { position: absolute; border: 2px solid #34d399; box-shadow: 0 0 0 999px rgba(0,0,0,.6); cursor: move; touch-action: none; }
+.rc-marco i { position: absolute; width: 30px; height: 30px; background: #34d399; border: 3px solid #0a0f1f; border-radius: 50%; touch-action: none; }
+.rc-marco i[data-rc=nw] { left: -15px; top: -15px; } .rc-marco i[data-rc=ne] { right: -15px; top: -15px; }
+.rc-marco i[data-rc=sw] { left: -15px; bottom: -15px; } .rc-marco i[data-rc=se] { right: -15px; bottom: -15px; }
+.rc-barra { display: flex; gap: 8px; margin-bottom: 10px; } .rc-barra button { flex: 1; margin: 0; }

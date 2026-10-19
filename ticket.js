@@ -76,12 +76,14 @@ function usarRecorte() {
   const c = document.createElement('canvas'); c.width = Math.round(rc.w); c.height = Math.round(rc.h);
   c.getContext('2d').drawImage(rc.cv, Math.round(rc.x), Math.round(rc.y), c.width, c.height, 0, 0, c.width, c.height);
   const img = base64DeCanvas(c); cerrarRecorte();
-  enviarFoto(img);
+  enviarFoto([img]);
 }
 
 // ---------- Lectura del ticket con Gemini (acepta imágenes) ----------
-async function leerTicket(base64, mime, nombresCarrito) {
-  const prompt = `Leé este ticket de compra de un comercio argentino y devolvé los datos en JSON.
+async function leerTicket(imagenes, nombresCarrito) {
+  const varias = imagenes.length > 1;
+  const prompt = `Leé este ticket de compra de un comercio argentino y devolvé los datos en JSON.${varias ? `
+- Son ${imagenes.length} capturas CONSECUTIVAS del mismo ticket, en orden de arriba hacia abajo. Se pueden superponer: si un renglón aparece repetido al final de una captura y al principio de la siguiente, es el mismo renglón y debe contarse UNA sola vez. El total suele figurar en la última.` : ''}
 - "total": el importe total a pagar (número).
 - "lineas": solo los productos comprados. Cada línea: "descripcion" (como figura en el ticket, sin códigos de barra), "cantidad" (número; 1 si no figura), "unidad" ("kg", "g", "l" o "u"), "subtotal" (importe final de esa línea en pesos, con el descuento de esa línea si lo tuviera) y "producto_carrito": si la línea corresponde a alguno de estos productos del carrito, escribí EXACTAMENTE su nombre; si no corresponde a ninguno, dejalo vacío.
 Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
@@ -105,7 +107,7 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
       signal: topeLargo(), method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: base64 } }] }],
+        contents: [{ parts: [{ text: prompt }, ...imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.base64 } }))] }],
         generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
       }),
     });
@@ -173,8 +175,9 @@ function montarConciliacion() {
     <div class="concil-cuerpo">
       <div id="cnPaso1">
         <p class="hint">Sacale una foto al ticket entero, derecho y bien iluminado. La IA lee los renglones y vos confirmás antes de guardar. <b>La foto no se guarda.</b></p>
+        <p class="hint">¿Ticket largo en la pantalla del celular? Sacá varias capturas seguidas (que cada una repita un poco el final de la anterior) y elegilas todas juntas desde la galería.</p>
         <label class="cn-boton cn-prim"><svg class="ic"><use href="#i-camera"/></svg> Sacar foto<input id="cnFoto" type="file" accept="image/*" capture="environment" hidden></label>
-        <label class="cn-boton"><svg class="ic"><use href="#i-image"/></svg> Elegir de la galería<input id="cnGaleria" type="file" accept="image/*" hidden></label>
+        <label class="cn-boton"><svg class="ic"><use href="#i-image"/></svg> Elegir de la galería (una o varias)<input id="cnGaleria" type="file" accept="image/*" multiple hidden></label>
         <button id="cnManual" class="ghost" style="width:100%;margin-top:10px">Cargar los montos a mano</button>
         <p id="cnEstado" class="hint cn-estado"></p>
       </div>
@@ -202,8 +205,8 @@ function montarConciliacion() {
     </div>
   </div>`);
   $('cnCerrar').addEventListener('click', cerrarConciliacion);
-  $('cnFoto').addEventListener('change', e => procesarFoto(e.target.files[0], e.target));
-  $('cnGaleria').addEventListener('change', e => procesarFoto(e.target.files[0], e.target));
+  $('cnFoto').addEventListener('change', e => procesarFoto([...e.target.files], e.target));
+  $('cnGaleria').addEventListener('change', e => procesarFoto([...e.target.files], e.target));
   $('rcGirar').addEventListener('click', girarRecorte);
   $('rcTodo').addEventListener('click', () => { rc.x = rc.y = 0; rc.w = rc.cv.width; rc.h = rc.cv.height; pintarRecorte(); });
   $('rcOtra').addEventListener('click', cerrarRecorte);
@@ -243,20 +246,26 @@ function abrirEscaneo() {
 }
 function cerrarConciliacion() { $('conciliar').hidden = true; document.body.style.overflow = ''; cn = null; }
 
-async function procesarFoto(file, input) {
+async function procesarFoto(archivos, input) {
+  archivos = (Array.isArray(archivos) ? archivos : [archivos]).filter(Boolean);
   if (input) input.value = '';
-  if (!file) return;
+  if (!archivos.length) return;
   if (!ajustes.apiKey) { $('cnEstado').textContent = 'Para leer la foto hace falta la clave de Gemini (Ajustes). Mientras tanto podés cargar los montos a mano.'; return; }
-  await abrirRecorte(file);
+  if (archivos.length === 1) { await abrirRecorte(archivos[0]); return; }
+  // varias capturas del mismo ticket: se envían juntas, en el orden en que se eligieron
+  if (archivos.length > 8) { $('cnEstado').textContent = 'Elegí hasta 8 capturas por vez.'; return; }
+  $('cnEstado').textContent = `Preparando ${archivos.length} capturas…`;
+  try { await enviarFoto(await Promise.all(archivos.map(f => prepararImagen(f, 1600)))); }
+  catch (e) { $('cnEstado').textContent = 'No se pudieron abrir las capturas: ' + e.message; }
 }
 
-async function enviarFoto(img) {
+async function enviarFoto(imgs) {
   const estado = $('cnEstado');
   const seguir = async () => {
     estado.textContent = 'Leyendo el ticket… puede tardar unos segundos.';
     $('cnFoto').disabled = $('cnGaleria').disabled = true;
     try {
-      const t = await leerTicket(img.base64, img.mime, cn.items.map(g => g.producto));
+      const t = await leerTicket(imgs, cn.items.map(g => g.producto));
       cn.lineas = lineasDesdeTicket(t); cn.total = Number(t.total) > 0 ? String(t.total) : ''; cn.origen = 'foto'; cn.comercio = t.comercio || '';
       if (cn.nuevo) datosDelTicket(t);
       if (!cn.lineas.length) { estado.textContent = 'No pude leer ningún producto. Probá con otra foto (más cerca, derecha y con buena luz) o encuadrá mejor el ticket.'; return; }

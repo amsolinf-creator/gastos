@@ -50,8 +50,21 @@ function categoriaDe(producto, sugerida, libre = true) {
 // Categorías para los selectores: las base, más todas las que usaste alguna vez
 const todasCategorias = (actual = '') => [...new Set([...CATEGORIAS.filter(c => c !== 'Otros'), ...gastos.map(g => g.categoria).filter(Boolean), 'Otros', actual].filter(Boolean))];
 const opcionesCategoria = actual => todasCategorias(actual).map(c => `<option${c === actual ? ' selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__nueva__">➕ Nueva categoría…</option>';
-function pedirCategoria() {
-  const n = (prompt('Nombre de la categoría (ej: Ferretería)') || '').trim();
+// Ventana propia para pedir un texto (el prompt() del navegador falla en algunos celulares)
+function pedirTexto({ titulo, ayuda = '', valor = '', placeholder = '', ok = 'Guardar' }) {
+  return new Promise(res => {
+    mostrarModal({
+      titulo, ok, sec: 'Cancelar',
+      html: `${ayuda ? `<p class="hint">${esc(ayuda)}</p>` : ''}<input id="pedirInput" class="pedir" type="text" maxlength="40" autocomplete="off" placeholder="${esc(placeholder)}" value="${esc(valor)}">`,
+      alOk: () => res(($('pedirInput').value || '').trim()), alSec: () => res(''),
+    });
+    const i = $('pedirInput');
+    i.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('modalOk').click(); } };
+    setTimeout(() => { i.focus(); i.select(); }, 120);
+  });
+}
+async function pedirCategoria() {
+  const n = await pedirTexto({ titulo: 'Nueva categoría', placeholder: 'Ej: Ferretería' });
   return n ? capital(n) : '';
 }
 function aprenderCategoria(producto, cat) {
@@ -78,9 +91,9 @@ function renderLugares() {
     $(id).value = lugarActual;
   }
 }
-function cambiarLugar(valor) {
+async function cambiarLugar(valor) {
   if (valor === '__nuevo__') {
-    const n = (prompt('Nombre del lugar (ej: Verdulería de la esquina)') || '').trim();
+    const n = await pedirTexto({ titulo: 'Nuevo lugar', placeholder: 'Ej: Verdulería de la esquina' });
     if (n) {
       const ya = lugares.find(l => l.toLowerCase() === n.toLowerCase());
       lugarActual = ya || n.charAt(0).toUpperCase() + n.slice(1);
@@ -356,10 +369,10 @@ $('items').addEventListener('input', e => {
   if (k === 'categoria') pendientes[+fila.dataset.i].catEditada = true;
 });
 // "➕ Nueva categoría…": se pide el nombre y queda disponible en todos los selectores
-$('items').addEventListener('change', e => {
+$('items').addEventListener('change', async e => {
   if (e.target.dataset.k !== 'categoria' || e.target.value !== '__nueva__') return;
   const fila = e.target.closest('.item'); const p = pendientes[+fila.dataset.i];
-  p.categoria = pedirCategoria() || p.categoria; p.catEditada = true;
+  p.categoria = (await pedirCategoria()) || p.categoria; p.catEditada = true;
   renderPendientes();
 });
 $('items').addEventListener('click', e => {
@@ -547,11 +560,11 @@ $('lista').addEventListener('change', e => {
   persistir(); renderHistorial(); toast('Lugar de la compra actualizado');
 });
 // Corregir categoría o lugar de un gasto ya guardado (la categoría corregida se recuerda para el futuro)
-$('lista').addEventListener('change', e => {
+$('lista').addEventListener('change', async e => {
   const id = e.target.dataset.gid; if (!id) return;
   const g = gastos.find(x => x.id === id); if (!g) return;
   let valor = e.target.value;
-  if (valor === '__nueva__') valor = pedirCategoria() || g.categoria;   // "➕ Nueva categoría…"
+  if (valor === '__nueva__') valor = (await pedirCategoria()) || g.categoria;   // "➕ Nueva categoría…"
   g[e.target.dataset.c] = valor;
   if (e.target.dataset.c === 'categoria') aprenderCategoria(g.producto, g.categoria);
   persistir(); renderHistorial(); toast('Cambio guardado');

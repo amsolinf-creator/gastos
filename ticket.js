@@ -218,7 +218,7 @@ function montarConciliacion() {
   // los campos se leen al terminar de editar (así el teclado no pierde el foco); los totales se actualizan mientras se escribe
   $('cnFilas').addEventListener('change', e => leerCampo(e.target, true));
   $('cnFilas').addEventListener('input', e => leerCampo(e.target, false));
-  $('cnTotales').addEventListener('input', e => { if (e.target.id === 'cnTotal') { cn.total = e.target.value; pintarTotales(false); } else if (e.target.id === 'cnRepartir') { cn.repartir = e.target.checked; } });
+  $('cnTotales').addEventListener('input', e => { if (e.target.id === 'cnTotal') { cn.total = e.target.value; pintarTotales(false); } else if (e.target.id === 'cnModoDif') { cn.modoDif = e.target.value; } });
 }
 
 function abrirConciliacion(cid) {
@@ -226,7 +226,7 @@ function abrirConciliacion(cid) {
   if (!items.length) return;
   montarConciliacion();
   $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false; $('pagoTicket').hidden = true;
-  cn = { cid, items, lineas: [], quitar: {}, total: '', repartir: true, origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
+  cn = { cid, items, lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
   $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
@@ -236,7 +236,7 @@ function abrirConciliacion(cid) {
 // Escanear un ticket sin carrito previo: toda la compra sale de la foto
 function abrirEscaneo() {
   montarConciliacion();
-  cn = { cid: null, nuevo: true, items: [], lineas: [], quitar: {}, total: '', repartir: true, origen: '', fecha: hoyISO(), lugar: '' };
+  cn = { cid: null, nuevo: true, items: [], lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: hoyISO(), lugar: '' };
   $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; pintarPago($('pagoTicket'), 1);
   $('cnSub').textContent = 'Los productos y el total salen de la foto';
   $('cnManual').hidden = true;
@@ -330,6 +330,8 @@ function pintarFilas() {
   pintarTotales(true);
 }
 
+// Una promoción general o un recargo se registra como un renglón aparte ("Descuento" con monto negativo / "Recargo")
+const textoAjuste = dif => (dif < 0 ? 'Registrarla como descuento' : (dif > 0 ? 'Registrarla como recargo (otros cargos)' : 'Registrarla como descuento o recargo'));
 function pintarTotales(completo) {
   // "quitar" por defecto: un producto que no está en el ticket casi seguro no se compró
   for (const g of cn.items) if (cn.quitar[g.id] === undefined) cn.quitar[g.id] = true;
@@ -345,8 +347,9 @@ function pintarTotales(completo) {
     $('cnTotales').innerHTML = `<div class="cn-suma"><span>Suma de los productos</span><b id="cnSuma">${peso(suma)}</b></div>
       <label>Total del ticket ($)<input id="cnTotal" type="number" inputmode="decimal" step="any" value="${cn.total}" placeholder="Ej: 15250"></label>
       <div id="cnDif" class="cn-dif">${bloque}</div>
-      <label class="chk"><input id="cnRepartir" type="checkbox" ${cn.repartir ? 'checked' : ''}> Si hay diferencia (descuentos, redondeos), repartirla entre los productos</label>`;
-  } else { $('cnSuma').textContent = peso(suma); $('cnDif').innerHTML = bloque; }
+      <label>Si hay diferencia con el total del ticket
+        <select id="cnModoDif"><option value="ajuste"${cn.modoDif === 'ajuste' ? ' selected' : ''}>${textoAjuste(dif)}</option><option value="repartir"${cn.modoDif === 'repartir' ? ' selected' : ''}>Repartirla entre los productos</option><option value="nada"${cn.modoDif === 'nada' ? ' selected' : ''}>No registrarla (queda la suma de los productos)</option></select></label>`;
+  } else { $('cnSuma').textContent = peso(suma); $('cnDif').innerHTML = bloque; $('cnModoDif').options[0].textContent = textoAjuste(dif); }
 }
 
 function guardarConciliacion() {
@@ -380,10 +383,17 @@ function guardarConciliacion() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: n.producto, monto: redondear2(n.monto), estimado: 0, dolar: Number(ajustes.dolar) || null,
     categoria: categoriaDe(n.producto, null, false), fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago), ...(n.cant ? { cantidadReal: n.cant } : {}),
   }));
-  // la diferencia con el total del ticket (descuentos generales, redondeos) se reparte en proporción
+  // diferencia con el total del ticket: descuento/recargo como renglón aparte, o repartida en proporción
   const conTicket = [...resultado.filter(g => g.conTicket), ...nuevosGastos];
   const sumaFinal = [...resultado, ...nuevosGastos].reduce((t, g) => t + g.monto, 0);
-  if (cn.repartir && total > 0 && conTicket.length && Math.abs(total - sumaFinal) >= 1) {
+  if (cn.modoDif === 'ajuste' && total > 0 && Math.abs(total - sumaFinal) >= 1) {
+    const d = redondear2(total - sumaFinal);
+    nuevosGastos.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: d < 0 ? 'Descuento' : 'Recargo', monto: d, estimado: 0, dolar: Number(ajustes.dolar) || null,
+      categoria: d < 0 ? 'Descuentos' : 'Otros', fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago),
+    });
+  }
+  if (cn.modoDif === 'repartir' && total > 0 && conTicket.length && Math.abs(total - sumaFinal) >= 1) {
     const baseT = conTicket.reduce((t, g) => t + g.monto, 0), objetivo = baseT + (total - sumaFinal);
     if (objetivo > 0) { let acu = 0; conTicket.forEach((g, i) => { const m = i === conTicket.length - 1 ? redondear2(objetivo - acu) : redondear2(g.monto * objetivo / baseT); g.monto = Math.max(0.01, m); acu += g.monto; }); }
   }

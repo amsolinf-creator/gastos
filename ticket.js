@@ -12,7 +12,7 @@ const topeLargo = () => (typeof AbortSignal !== 'undefined' && AbortSignal.timeo
 const limpiarDescTicket = d => { const t = String(d).trim().replace(/\s+/g, ' ').toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
 
 // ---------- Foto: se reduce antes de enviarla (más rápido y gasta menos cuota) ----------
-async function prepararImagen(file, ladoMax = 2000) {
+async function canvasDeArchivo(file, ladoMax = 2000) {
   let bmp;
   try { bmp = await createImageBitmap(file); }
   catch {
@@ -21,8 +21,61 @@ async function prepararImagen(file, ladoMax = 2000) {
   const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight, k = Math.min(1, ladoMax / Math.max(w, h));
   const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  const url = c.toDataURL('image/jpeg', 0.85);
-  return { base64: url.split(',')[1], mime: 'image/jpeg', ancho: c.width, alto: c.height };
+  return c;
+}
+const base64DeCanvas = c => ({ base64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg', ancho: c.width, alto: c.height });
+async function prepararImagen(file, ladoMax = 2000) { return base64DeCanvas(await canvasDeArchivo(file, ladoMax)); }
+
+// ---------- Recorte: se encuadra el ticket y se deja afuera lo que no sirve ----------
+let rc = null;   // { cv: canvas de origen, x, y, w, h: recorte en píxeles del origen }
+const RC_MIN = 60;
+function pintarRecorte() {
+  const l = $('cnLienzo'), k = l.getBoundingClientRect().width / rc.cv.width, m = $('cnMarco');
+  m.style.left = rc.x * k + 'px'; m.style.top = rc.y * k + 'px'; m.style.width = rc.w * k + 'px'; m.style.height = rc.h * k + 'px';
+}
+function dibujarOrigen() {
+  const l = $('cnLienzo'); l.width = rc.cv.width; l.height = rc.cv.height; l.getContext('2d').drawImage(rc.cv, 0, 0);
+  rc.x = rc.y = 0; rc.w = rc.cv.width; rc.h = rc.cv.height;
+  requestAnimationFrame(pintarRecorte);
+}
+function girarRecorte() {
+  const o = rc.cv, c = document.createElement('canvas'); c.width = o.height; c.height = o.width;
+  const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(o, 0, 0);
+  rc.cv = c; dibujarOrigen();
+}
+function arrastrarRecorte(e) {
+  const modo = e.target.dataset.rc || (e.target.id === 'cnMarco' ? 'mover' : ''); if (!modo || !rc) return;
+  e.preventDefault();
+  const k = $('cnLienzo').getBoundingClientRect().width / rc.cv.width, x0 = e.clientX, y0 = e.clientY, o = { ...rc }, W = rc.cv.width, H = rc.cv.height;
+  const mover = ev => {
+    const dx = (ev.clientX - x0) / k, dy = (ev.clientY - y0) / k;
+    let x = o.x, y = o.y, r = o.x + o.w, b = o.y + o.h;
+    if (modo === 'mover') { x = Math.min(Math.max(0, o.x + dx), W - o.w); y = Math.min(Math.max(0, o.y + dy), H - o.h); r = x + o.w; b = y + o.h; }
+    else {
+      if (modo.includes('w')) x = Math.min(Math.max(0, o.x + dx), r - RC_MIN);
+      if (modo.includes('e')) r = Math.max(Math.min(W, o.x + o.w + dx), x + RC_MIN);
+      if (modo.includes('n')) y = Math.min(Math.max(0, o.y + dy), b - RC_MIN);
+      if (modo.includes('s')) b = Math.max(Math.min(H, o.y + o.h + dy), y + RC_MIN);
+    }
+    rc.x = x; rc.y = y; rc.w = r - x; rc.h = b - y; pintarRecorte();
+  };
+  const fin = () => { removeEventListener('pointermove', mover); removeEventListener('pointerup', fin); removeEventListener('pointercancel', fin); };
+  addEventListener('pointermove', mover); addEventListener('pointerup', fin); addEventListener('pointercancel', fin);
+}
+async function abrirRecorte(file) {
+  const estado = $('cnEstado'); estado.textContent = 'Abriendo la foto…';
+  try { rc = { cv: await canvasDeArchivo(file) }; }
+  catch (e) { estado.textContent = 'No se pudo abrir la foto: ' + e.message; return; }
+  estado.textContent = '';
+  $('cnPaso1').hidden = true; $('cnPasoRecorte').hidden = false;
+  dibujarOrigen();
+}
+function cerrarRecorte() { $('cnPasoRecorte').hidden = true; $('cnPaso1').hidden = false; rc = null; }
+function usarRecorte() {
+  const c = document.createElement('canvas'); c.width = Math.round(rc.w); c.height = Math.round(rc.h);
+  c.getContext('2d').drawImage(rc.cv, Math.round(rc.x), Math.round(rc.y), c.width, c.height, 0, 0, c.width, c.height);
+  const img = base64DeCanvas(c); cerrarRecorte();
+  enviarFoto(img);
 }
 
 // ---------- Lectura del ticket con Gemini (acepta imágenes) ----------
@@ -119,6 +172,17 @@ function montarConciliacion() {
         <button id="cnManual" class="ghost" style="width:100%;margin-top:10px">Cargar los montos a mano</button>
         <p id="cnEstado" class="hint cn-estado"></p>
       </div>
+      <div id="cnPasoRecorte" hidden>
+        <p class="hint" style="margin-top:0">Arrastrá las esquinas para encuadrar solo el ticket (o movelo desde adentro). Dejá afuera todo lo que no sirva.</p>
+        <div class="rc-caja"><div class="rc-wrap" id="cnWrap"><canvas id="cnLienzo"></canvas>
+          <div id="cnMarco" class="rc-marco"><i data-rc="nw"></i><i data-rc="ne"></i><i data-rc="sw"></i><i data-rc="se"></i></div></div></div>
+        <div class="rc-barra">
+          <button id="rcGirar" class="ghost" type="button">↻ Girar</button>
+          <button id="rcTodo" class="ghost" type="button">Foto entera</button>
+          <button id="rcOtra" class="ghost" type="button">Otra foto</button>
+        </div>
+        <button id="rcUsar" class="primary" type="button" style="width:100%">Usar esta parte</button>
+      </div>
       <div id="cnPaso2" hidden>
         <p id="cnInfo" class="hint" style="margin-top:0"></p>
         <div id="cnFilas"></div>
@@ -132,6 +196,11 @@ function montarConciliacion() {
   $('cnCerrar').addEventListener('click', cerrarConciliacion);
   $('cnFoto').addEventListener('change', e => procesarFoto(e.target.files[0], e.target));
   $('cnGaleria').addEventListener('change', e => procesarFoto(e.target.files[0], e.target));
+  $('rcGirar').addEventListener('click', girarRecorte);
+  $('rcTodo').addEventListener('click', () => { rc.x = rc.y = 0; rc.w = rc.cv.width; rc.h = rc.cv.height; pintarRecorte(); });
+  $('rcOtra').addEventListener('click', cerrarRecorte);
+  $('rcUsar').addEventListener('click', usarRecorte);
+  $('cnPasoRecorte').addEventListener('pointerdown', arrastrarRecorte);
   $('cnManual').addEventListener('click', () => { cn.lineas = lineasDesdeCarrito(); cn.total = ''; cn.origen = 'manual'; mostrarPaso2('Completá el monto real de cada producto, tal como figura en el ticket.'); });
   $('cnGuardar').addEventListener('click', guardarConciliacion);
   $('cnGuardar').textContent = 'Guardar';
@@ -149,7 +218,7 @@ function abrirConciliacion(cid) {
   cn = { cid, items, lineas: [], quitar: {}, total: '', repartir: true, origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
-  $('cnPaso1').hidden = false; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
@@ -160,7 +229,7 @@ function abrirEscaneo() {
   $('cnTit').textContent = 'Registrar desde un ticket';
   $('cnSub').textContent = 'Los productos y el total salen de la foto';
   $('cnManual').hidden = true;
-  $('cnPaso1').hidden = false; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
@@ -169,26 +238,29 @@ function cerrarConciliacion() { $('conciliar').hidden = true; document.body.styl
 async function procesarFoto(file, input) {
   if (input) input.value = '';
   if (!file) return;
+  if (!ajustes.apiKey) { $('cnEstado').textContent = 'Para leer la foto hace falta la clave de Gemini (Ajustes). Mientras tanto podés cargar los montos a mano.'; return; }
+  await abrirRecorte(file);
+}
+
+async function enviarFoto(img) {
   const estado = $('cnEstado');
-  if (!ajustes.apiKey) { estado.textContent = 'Para leer la foto hace falta la clave de Gemini (Ajustes). Mientras tanto podés cargar los montos a mano.'; return; }
   const seguir = async () => {
     estado.textContent = 'Leyendo el ticket… puede tardar unos segundos.';
     $('cnFoto').disabled = $('cnGaleria').disabled = true;
     try {
-      const img = await prepararImagen(file);
       const t = await leerTicket(img.base64, img.mime, cn.items.map(g => g.producto));
       cn.lineas = lineasDesdeTicket(t); cn.total = Number(t.total) > 0 ? String(t.total) : ''; cn.origen = 'foto'; cn.comercio = t.comercio || '';
       if (cn.nuevo) datosDelTicket(t);
-      if (!cn.lineas.length) { estado.textContent = 'No pude leer ningún producto. Probá con otra foto (más cerca, derecha y con buena luz) o cargá los montos a mano.'; return; }
+      if (!cn.lineas.length) { estado.textContent = 'No pude leer ningún producto. Probá con otra foto (más cerca, derecha y con buena luz) o encuadrá mejor el ticket.'; return; }
       mostrarPaso2(`Leí ${cn.lineas.length} renglón(es)${cn.comercio ? ' de ' + cn.comercio : ''}. Revisá que cada uno esté asociado al producto correcto y que los montos coincidan con el ticket.`);
     } catch (e) {
-      estado.textContent = 'No se pudo leer el ticket: ' + e.message + '. Podés probar de nuevo o cargar los montos a mano.';
+      estado.textContent = 'No se pudo leer el ticket: ' + e.message + '. Podés probar de nuevo' + (cn.nuevo ? '.' : ' o cargar los montos a mano.');
     } finally { $('cnFoto').disabled = $('cnGaleria').disabled = false; }
   };
   if (localStorage.getItem(TICKET_AVISO)) { await seguir(); return; }
   mostrarModal({
     titulo: 'La foto se envía a Google',
-    html: '<p>Para leer el ticket, la foto se envía a <b>Google (Gemini)</b>. La app <b>no la guarda</b>.</p><p>Si el ticket tiene datos que no querés compartir (por ejemplo parte de una tarjeta), tapalos antes de sacar la foto.</p>',
+    html: '<p>Para leer el ticket, la foto se envía a <b>Google (Gemini)</b>. La app <b>no la guarda</b>.</p><p>Si el ticket tiene datos que no querés compartir (por ejemplo parte de una tarjeta), dejalos afuera al encuadrar la foto.</p>',
     ok: 'Entendido, continuar', sec: 'Cancelar',
     alOk: () => { localStorage.setItem(TICKET_AVISO, '1'); seguir(); },
   });

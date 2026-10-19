@@ -146,8 +146,13 @@ function lineasDesdeTicket(t) {
 
 // Escaneo: fecha y lugar de la compra según lo que se leyó (si no se leen, hoy y sin lugar)
 function datosDelTicket(t) {
-  const f = String(t.fecha || '');
-  if (/^\d{4}-\d{2}-\d{2}$/.test(f) && f <= hoyISO() && f >= '2000-01-01') cn.fecha = f;
+  // La IA a veces lee mal el año: solo se acepta la fecha del ticket si es de los últimos 45 días (si no, se usa hoy y se avisa)
+  const f = String(t.fecha || ''), limite = new Date(); limite.setDate(limite.getDate() - 45);
+  cn.avisoFecha = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(f)) {
+    if (f <= hoyISO() && f >= fechaISO(limite)) cn.fecha = f;
+    else cn.avisoFecha = `La fecha que leí en el ticket (${fmtFecha(f)}) no parece correcta, así que puse la de hoy. Podés cambiarla abajo.`;
+  }
   const c = String(t.comercio || '').trim();
   if (c) {
     let mejor = '', mp = 0;
@@ -188,6 +193,7 @@ function montarConciliacion() {
         <p id="cnInfo" class="hint" style="margin-top:0"></p>
         <div id="cnFilas"></div>
         <div id="cnTotales" class="cn-totales"></div>
+        <label id="cnFechaL" hidden>Fecha de la compra<input id="cnFecha" type="date"></label>
         <div id="pagoTicket" class="pago" hidden></div>
       </div>
     </div>
@@ -270,7 +276,9 @@ async function enviarFoto(img) {
 
 function mostrarPaso2(info) {
   $('cnPaso1').hidden = true; $('cnPaso2').hidden = false; $('cnPie').hidden = false;
-  $('cnInfo').textContent = info;
+  $('cnInfo').textContent = info + (cn.avisoFecha ? ' ' + cn.avisoFecha : '');
+  $('cnFechaL').hidden = !cn.nuevo;
+  if (cn.nuevo) { $('cnFecha').value = cn.fecha; $('cnFecha').max = hoyISO(); }
   cn.quitar = {};
   pintarFilas();
 }
@@ -333,6 +341,7 @@ function pintarTotales(completo) {
 }
 
 function guardarConciliacion() {
+  if (cn.nuevo && $('cnFecha').value) cn.fecha = $('cnFecha').value;
   const pago = cn.nuevo ? leerPago($('pagoTicket')) : {};
   if (pago === null) return;
   const usados = new Set(cn.lineas.filter(l => l.destino !== 'nuevo' && l.destino !== 'ignorar').map(l => l.destino));

@@ -90,6 +90,18 @@ function lineasDesdeTicket(t) {
   return lineas;
 }
 
+// Escaneo: fecha y lugar de la compra según lo que se leyó (si no se leen, hoy y sin lugar)
+function datosDelTicket(t) {
+  const f = String(t.fecha || '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(f) && f <= hoyISO() && f >= '2000-01-01') cn.fecha = f;
+  const c = String(t.comercio || '').trim();
+  if (c) {
+    let mejor = '', mp = 0;
+    for (const l of lugares) { const p = parecido(c, l); if (p > mp) { mp = p; mejor = l; } }
+    cn.lugar = mejor || limpiarDescTicket(c);
+  }
+}
+
 // ---------- Pantalla ----------
 function montarConciliacion() {
   if ($('conciliar')) return;
@@ -97,7 +109,7 @@ function montarConciliacion() {
   <div id="conciliar" class="concil" hidden>
     <div class="concil-head">
       <button id="cnCerrar" class="ibtn no" aria-label="Cerrar"><svg class="ic"><use href="#i-x"/></svg></button>
-      <div><b>Conciliar con el ticket</b><small id="cnSub"></small></div>
+      <div><b id="cnTit">Conciliar con el ticket</b><small id="cnSub"></small></div>
     </div>
     <div class="concil-cuerpo">
       <div id="cnPaso1">
@@ -122,6 +134,7 @@ function montarConciliacion() {
   $('cnGaleria').addEventListener('change', e => procesarFoto(e.target.files[0], e.target));
   $('cnManual').addEventListener('click', () => { cn.lineas = lineasDesdeCarrito(); cn.total = ''; cn.origen = 'manual'; mostrarPaso2('Completá el monto real de cada producto, tal como figura en el ticket.'); });
   $('cnGuardar').addEventListener('click', guardarConciliacion);
+  $('cnGuardar').textContent = 'Guardar';
   // los campos se leen al terminar de editar (así el teclado no pierde el foco); los totales se actualizan mientras se escribe
   $('cnFilas').addEventListener('change', e => leerCampo(e.target, true));
   $('cnFilas').addEventListener('input', e => leerCampo(e.target, false));
@@ -132,9 +145,21 @@ function abrirConciliacion(cid) {
   const items = gastos.filter(g => g.compraId === cid);
   if (!items.length) return;
   montarConciliacion();
+  $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false;
   cn = { cid, items, lineas: [], quitar: {}, total: '', repartir: true, origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
+  $('cnPaso1').hidden = false; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
+  $('conciliar').scrollTop = 0;
+}
+// Escanear un ticket sin carrito previo: toda la compra sale de la foto
+function abrirEscaneo() {
+  montarConciliacion();
+  cn = { cid: null, nuevo: true, items: [], lineas: [], quitar: {}, total: '', repartir: true, origen: '', fecha: hoyISO(), lugar: '' };
+  $('cnTit').textContent = 'Registrar desde un ticket';
+  $('cnSub').textContent = 'Los productos y el total salen de la foto';
+  $('cnManual').hidden = true;
   $('cnPaso1').hidden = false; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
@@ -153,6 +178,7 @@ async function procesarFoto(file, input) {
       const img = await prepararImagen(file);
       const t = await leerTicket(img.base64, img.mime, cn.items.map(g => g.producto));
       cn.lineas = lineasDesdeTicket(t); cn.total = Number(t.total) > 0 ? String(t.total) : ''; cn.origen = 'foto'; cn.comercio = t.comercio || '';
+      if (cn.nuevo) datosDelTicket(t);
       if (!cn.lineas.length) { estado.textContent = 'No pude leer ningún producto. Probá con otra foto (más cerca, derecha y con buena luz) o cargá los montos a mano.'; return; }
       mostrarPaso2(`Leí ${cn.lineas.length} renglón(es)${cn.comercio ? ' de ' + cn.comercio : ''}. Revisá que cada uno esté asociado al producto correcto y que los montos coincidan con el ticket.`);
     } catch (e) {
@@ -181,6 +207,7 @@ function leerCampo(el, confirmar) {
   if (k === 'destino') l.destino = el.value;
   else if (k === 'cant') l.cant = el.value;
   else if (k === 'monto') l.monto = el.value;
+  else if (k === 'nombre') { l.nombre = el.value; return; }
   else if (k === 'quitar') return;
   if (confirmar) pintarFilas(); else pintarTotales(false);
 }
@@ -188,12 +215,13 @@ function leerCampo(el, confirmar) {
 function pintarFilas() {
   const usados = new Set(cn.lineas.filter(l => l.destino !== 'nuevo' && l.destino !== 'ignorar').map(l => l.destino));
   const opciones = sel => cn.items.map(g => `<option value="${g.id}"${sel === g.id ? ' selected' : ''}>${esc(g.producto)}</option>`).join('')
-    + `<option value="nuevo"${sel === 'nuevo' ? ' selected' : ''}>Producto nuevo (no estaba en mi carrito)</option><option value="ignorar"${sel === 'ignorar' ? ' selected' : ''}>Ignorar este renglón</option>`;
+    + `<option value="nuevo"${sel === 'nuevo' ? ' selected' : ''}>${cn.nuevo ? 'Registrar este producto' : 'Producto nuevo (no estaba en mi carrito)'}</option><option value="ignorar"${sel === 'ignorar' ? ' selected' : ''}>Ignorar este renglón</option>`;
   const filas = cn.lineas.map((l, i) => {
     const g = cn.items.find(x => x.id === l.destino), est = g ? g.estimado || g.monto : 0, dif = g ? numCn(l.monto) - est : 0;
     const chip = !g || l.destino === 'ignorar' ? '' : (Math.abs(dif) < 1 ? '<span class="tag">igual al estimado</span>' : `<span class="tag ${dif > 0 ? 'warn' : ''}">${dif > 0 ? '+' : '−'}${peso(Math.abs(dif))} vs estimado</span>`);
     return `<div class="cn-fila${l.destino === 'ignorar' ? ' cn-ign' : ''}" data-i="${i}">
       <div class="cn-t"><b>${esc(l.desc)}</b>${cn.origen === 'foto' ? '<small>renglón del ticket</small>' : '<small>producto de la compra</small>'}</div>
+      ${l.destino === 'nuevo' ? `<input data-cn="nombre" type="text" value="${esc(l.nombre !== undefined ? l.nombre : limpiarDescTicket(l.desc))}" aria-label="Nombre del producto">` : ''}
       <select data-cn="destino" aria-label="Producto de la compra">${opciones(l.destino)}</select>
       <div class="cn-campos">
         <label>Cantidad<input data-cn="cant" type="number" inputmode="decimal" step="any" value="${l.cant === '' ? '' : l.cant}" placeholder="—"></label>
@@ -236,9 +264,10 @@ function guardarConciliacion() {
   for (const l of cn.lineas) {
     const monto = numCn(l.monto);
     if (l.destino === 'ignorar' || !(monto > 0)) continue;
-    if (l.destino === 'nuevo') { nuevos.push({ producto: limpiarDescTicket(l.desc), monto, cant: numCn(l.cant) }); continue; }
+    if (l.destino === 'nuevo') { nuevos.push({ producto: (l.nombre !== undefined ? String(l.nombre).trim() : '') || limpiarDescTicket(l.desc), monto, cant: numCn(l.cant) }); continue; }
     const a = acum.get(l.destino) || { monto: 0, cant: 0 }; a.monto += monto; a.cant += numCn(l.cant); acum.set(l.destino, a);
   }
+  if (cn.nuevo && !cn.cid) cn.cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const conMonto = acum.size + nuevos.length;
   if (!conMonto) { toast('Cargá al menos un monto real'); return; }
   const total = numCn(cn.total);
@@ -254,7 +283,7 @@ function guardarConciliacion() {
     resultado.push(g);
   }
   const nuevosGastos = nuevos.map(n => ({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: n.producto, monto: redondear2(n.monto), estimado: 0,
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: n.producto, monto: redondear2(n.monto), estimado: 0, dolar: Number(ajustes.dolar) || null,
     categoria: categoriaDe(n.producto, null, false), fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...(n.cant ? { cantidadReal: n.cant } : {}),
   }));
   // la diferencia con el total del ticket (descuentos generales, redondeos) se reparte en proporción
@@ -268,12 +297,17 @@ function guardarConciliacion() {
   gastos.push(...nuevosGastos);
   persistir();
   const cid = cn.cid, totalFinal = gastos.filter(g => g.compraId === cid).reduce((x, g) => x + g.monto, 0);
+  const eraNuevo = cn.nuevo;
   cerrarConciliacion();
   abiertos.add(cid); renderHistorial();
-  toast(`Compra conciliada con el ticket: ${peso(totalFinal)}`);
+  if (eraNuevo) document.querySelector('nav button[data-t=historial]').click();
+  toast(eraNuevo ? `Compra registrada desde el ticket: ${peso(totalFinal)}` : `Compra conciliada con el ticket: ${peso(totalFinal)}`);
 }
 
 // Botón "Conciliar con ticket" dentro de cada compra del Historial
 $('lista').addEventListener('click', e => {
   const b = e.target.closest('[data-conciliar]'); if (b) abrirConciliacion(b.dataset.conciliar);
 });
+
+// Botón "Escanear ticket" en Gasto directo
+document.addEventListener('click', e => { if (e.target.closest('#escanear')) abrirEscaneo(); });

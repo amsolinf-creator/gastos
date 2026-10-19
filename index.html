@@ -176,9 +176,16 @@
         </div>
         <p class="hint">Incluye las hojas: Resumen, Gastos, Compras, Por categoría, Por lugar, Por mes y Por día.</p>
       </details>
+      <button id="hSeleccionar" class="ghost" style="width:100%;margin-bottom:8px">Seleccionar para borrar varios</button>
       <button id="hReclasificar" class="ghost" style="width:100%">Reclasificar los de «Otros»</button>
       <p class="hint">Tocá una compra para ver su detalle. Ahí podés corregir la categoría de cada producto (la app lo recuerda) o el lugar de toda la compra.</p>
       <div id="lista"></div>
+      <div id="barraSel" class="barra-sel" hidden>
+        <span id="selCuenta"></span>
+        <button id="selTodo" class="ghost" type="button">Todo</button>
+        <button id="selCancelar" class="ghost" type="button">Cancelar</button>
+        <button id="selBorrar" class="danger-b" type="button">Borrar</button>
+      </div>
     </section>
 
     <!-- AJUSTES -->

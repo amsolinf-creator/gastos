@@ -30,6 +30,7 @@ async function prepararImagen(file, ladoMax = 2000) { return base64DeCanvas(awai
 let rc = null;   // { cv: canvas de origen, x, y, w, h: recorte en píxeles del origen }
 const RC_MIN = 60;
 function pintarRecorte() {
+  if (!rc) return;
   const l = $('cnLienzo'), k = l.getBoundingClientRect().width / rc.cv.width, m = $('cnMarco');
   m.style.left = rc.x * k + 'px'; m.style.top = rc.y * k + 'px'; m.style.width = rc.w * k + 'px'; m.style.height = rc.h * k + 'px';
 }

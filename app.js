@@ -7,6 +7,9 @@ let gastos = cargar(LS_GASTOS, []);
 let ajustes = cargar(LS_AJUSTES, {});
 ajustes = { apiKey: '', modelo: 'gemini-flash-latest', groqKey: '', groqModelo: 'llama-3.3-70b-versatile', principal: 'gemini', modoIA: 'rapido', confirmar: 'si', dolar: '', ...ajustes };
 // Cada vez que se guardan datos, se avisa al módulo de copia (respaldo.js) para el respaldo automático en Drive
+const MEDIOS = ['Efectivo', 'Débito', 'Tarjeta de crédito', 'Transferencia', 'Billetera virtual', 'Otro'];
+const CREDITO = 'Tarjeta de crédito';
+const pagoTxt = p => !p || !p.medio ? '' : (p.medio === CREDITO ? `${p.tarjeta || 'Tarjeta'} · ${(p.cuotas || 1) === 1 ? '1 pago' : p.cuotas + ' cuotas'}` : p.medio);
 const persistir = () => { localStorage.setItem(LS_GASTOS, JSON.stringify(gastos)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); };
 
 // ---------- Categorías: el diccionario sugiere y tus correcciones se recuerdan ----------
@@ -378,15 +381,16 @@ function limpiarRegistro() {
 $('guardar').addEventListener('click', () => {
   const validos = pendientes.filter(p => p.producto.trim() && p.monto > 0 && p.fecha);
   if (!validos.length) { toast('Completá producto y monto'); return; }
+  const pago = leerPago($('pagoGasto')); if (pago === null) return;
   const dolar = Number(ajustes.dolar) || null;
   validos.forEach(p => {
     if (p.catEditada) aprenderCategoria(p.producto, p.categoria);
     gastos.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarDe(p.producto), dolar,
+      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarDe(p.producto), dolar, ...conPago(pago),
     });
   });
-  persistir(); limpiarRegistro(); renderHoy();
+  persistir(); limpiarRegistro(); renderHoy(); reiniciarCuotas($('pagoGasto'));
   toast(`${validos.length} gasto(s) guardado(s)`);
 });
 
@@ -468,6 +472,16 @@ function renderStats() {
   $('lugares').innerHTML = filasL.length
     ? filasL.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalL * 100)}%</span></div><div class="pista"><i style="width:${v / totalL * 100}%"></i></div></div>`).join('')
     : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
+
+  $('medTitulo').textContent = 'Por medio de pago — ' + nombres[vista];
+  const porMedio = {};
+  gastos.filter(g => { const f = parseFecha(g.fecha); return f >= p.desde && f < p.hasta; })
+    .forEach(g => { const l = g.pago ? (g.pago.medio === CREDITO ? 'Tarjeta ' + (g.pago.tarjeta || '') : g.pago.medio) : 'Sin especificar'; porMedio[l] = (porMedio[l] || 0) + g.monto; });
+  const filasM = Object.entries(porMedio).sort((a, b) => b[1] - a[1]);
+  const totalM = filasM.reduce((s, [, v]) => s + v, 0) || 1;
+  $('medios').innerHTML = filasM.length
+    ? filasM.map(([c, v]) => `<div class="cat"><div class="top"><span>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalM * 100)}%</span></div><div class="pista"><i style="width:${v / totalM * 100}%"></i></div></div>`).join('')
+    : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 }
 
 // ---------- Historial ----------
@@ -476,7 +490,8 @@ const abiertos = new Set();   // compras desplegadas: se mantienen abiertas al c
 const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub' : ''}"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
   <div class="metas">
     <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
-    ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>`}
+    ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
+    <button class="mini-pago${g.pago ? ' on' : ''}" data-pago-gasto="${g.id}">${esc(pagoTxt(g.pago) || 'Medio de pago')}</button>`}
   </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}${enCompra && g.estimado && Math.abs(g.estimado - g.monto) > 1 ? `<small>precio estimado ${peso(g.estimado)}</small>` : ''}</div>
   <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`;
 
@@ -488,7 +503,7 @@ function tarjetaCompra(items) {
   const conciliada = items.every(g => g.conTicket);
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}</small></span></span>
+      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small></span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
@@ -496,6 +511,7 @@ function tarjetaCompra(items) {
         <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
         <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
       </div>
+      <button class="cg-pago" data-pago-compra="${id}"><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(pagoTxt(items[0].pago) || 'Elegir el medio de pago')}</button>
       <button class="cg-conc" data-conciliar="${id}"><svg class="ic ic-s"><use href="#i-camera"/></svg> ${conciliada ? 'Volver a conciliar con el ticket' : 'Conciliar con el ticket'}</button>
       ${items.map(g => filaGasto(g, true)).join('')}
     </div>
@@ -927,6 +943,7 @@ $('cGuardar').addEventListener('click', () => {
   const estimado = totalCarrito();
   let total = Number($('cCaja').value) || 0;
   if (!validos.length && !total) { toast('Cargá el total que marca la caja'); $('cCaja').focus(); return; }
+  const pago = leerPago($('pagoCompra')); if (pago === null) return;
   if (!total) {
     if (!confirm(`No cargaste el total que marca la caja.\n¿Guardar con el total estimado (${peso(estimado)})?`)) { $('cCaja').focus(); return; }
     total = estimado;
@@ -955,9 +972,9 @@ $('cGuardar').addEventListener('click', () => {
   const compraId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   registros.filter(r => r.monto > 0).forEach(r => gastos.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, compraId, dolar,
+    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, compraId, dolar, ...conPago(pago),
   }));
-  persistir();
+  persistir(); reiniciarCuotas($('pagoCompra'));
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
   cambiarLugar('');   // la próxima compra arranca con el lugar "Sin especificar"
   toast(`Compra guardada: ${peso(total)}`);
@@ -1153,11 +1170,12 @@ function armarHojas(lista, r) {
     ],
   };
 
-  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado', 'Origen del monto'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
-  const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '', g.conTicket ? 'Ticket' : (g.compraId ? 'Estimado (total de la caja)' : 'Gasto directo')]
+  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado', 'Origen del monto', 'Medio de pago', 'Tarjeta', 'Cuotas'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
+  const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '', g.conTicket ? 'Ticket' : (g.compraId ? 'Estimado (total de la caja)' : 'Gasto directo'),
+      g.pago ? g.pago.medio : '', g.pago && g.pago.tarjeta ? g.pago.tarjeta : '', g.pago && g.pago.medio === CREDITO ? xNum(g.pago.cuotas || 1) : '']
     .concat(hayUsd ? [g.dolar ? xNum(redondeo(g.monto / g.dolar), 0) : ''] : []));
   const gastosHoja = {
-    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 24, 10], filtro: true, filtroHasta: lista.length + 1,
+    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 24, 18, 16, 8, 10], filtro: true, filtroHasta: lista.length + 1,
     filas: [encG, ...filasG, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${lista.length + 1})`, redondeo(total), EST.totalDinero)]],
   };
 
@@ -1189,7 +1207,15 @@ function armarHojas(lista, r) {
     filas: [['Fecha', 'Total', 'Gastos'].map(t => xTxt(t, EST.encabezado)), ...filasD, [], [xTxt('TOTAL', EST.totalTxt), xForm(`SUM(B2:B${filasD.length + 1})`, redondeo(total), EST.totalDinero)]],
   };
 
-  return [resumen, gastosHoja, comprasHoja, hojaAgrupada('Por categoría', 'Categoría', porCat), hojaAgrupada('Por lugar', 'Lugar', porLugar), hojaAgrupada('Por mes', 'Mes', porMes), diaHoja];
+  const porMedio = sumarPor(lista, g => g.pago ? (g.pago.medio === CREDITO ? 'Tarjeta ' + (g.pago.tarjeta || '') : g.pago.medio) : 'Sin especificar').sort((a, b) => b[1].total - a[1].total);
+  const planes = planesCuotas().sort((a, b) => a.tarjeta.localeCompare(b.tarjeta, 'es') || a.fin - b.fin);
+  const cuotasHoja = planes.length ? {
+    nombre: 'Cuotas', anchos: [18, 30, 12, 14, 8, 16, 18, 8, 16], filtro: true, filtroHasta: planes.length + 1,
+    filas: [['Tarjeta', 'Compra', 'Fecha', 'Total', 'Cuotas', 'Valor de la cuota', 'Cuota de este mes', 'Faltan', 'Saldo pendiente'].map(t => xTxt(t, EST.encabezado)),
+      ...planes.map(p => [p.tarjeta, p.desc || 'Compra', xFecha(p.fecha), xNum(redondeo(p.total), EST.dinero), xNum(p.cuotas), xNum(redondeo(p.valor), EST.dinero),
+        p.n < 1 ? 'Empieza ' + etqMes(p.ini) : (p.n > p.cuotas ? 'Terminada' : `${p.n} de ${p.cuotas}`), xNum(p.faltan), xNum(redondeo(p.saldo), EST.dinero)])],
+  } : null;
+  return [resumen, gastosHoja, comprasHoja, hojaAgrupada('Por categoría', 'Categoría', porCat), hojaAgrupada('Por lugar', 'Lugar', porLugar), hojaAgrupada('Por medio de pago', 'Medio de pago', porMedio), hojaAgrupada('Por mes', 'Mes', porMes), diaHoja, ...(cuotasHoja ? [cuotasHoja] : [])];
 }
 
 function generarReporte() {

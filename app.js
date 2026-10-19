@@ -121,7 +121,7 @@ const colorCat = c => {
   let h = 0; for (const ch of String(c)) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return `hsl(${h} 70% 62%)`;
 };
-const peso = n => '$' + Math.round(n).toLocaleString('es-AR');
+const peso = n => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('es-AR');
 const hoyISO = () => fechaISO(new Date());
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const parseFecha = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -473,7 +473,7 @@ function renderStats() {
   const filas = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
   const totalP = filas.reduce((s, [, v]) => s + v, 0) || 1;
   $('categorias').innerHTML = filas.length
-    ? filas.map(([c, v]) => `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
+    ? filas.map(([c, v]) => `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${Math.max(0, v / totalP * 100)}%"></i></div></div>`).join('')
     : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 
   $('lugTitulo').textContent = 'Por lugar — ' + nombres[vista];

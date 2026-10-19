@@ -349,3 +349,9 @@ nav button span { font-size: 10px; }
 .mt-acc { display: flex; gap: 8px; margin-top: 10px; } .mt-acc button { flex: 1; margin: 0; min-height: 44px; }
 .mt-acc .del { color: #fb7185; border-color: rgba(251, 113, 133, .4); }
 .mt-nueva { display: flex; gap: 8px; } .mt-nueva input { flex: 1; min-width: 0; } .mt-nueva button { margin: 0; }
+
+.pedir { width: 100%; margin-top: 6px; text-align: left; font-size: 18px; }
+.mt-nueva { align-items: stretch; margin-top: 4px; }
+.mt-nueva input { flex: 1 1 0; width: auto; min-width: 0; }
+.mt-nueva button { flex: 0 0 auto; width: auto; padding: 0 22px; }
+.modal-logo[hidden] { display: none; }

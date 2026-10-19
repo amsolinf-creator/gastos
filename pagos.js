@@ -8,8 +8,8 @@ let pagoUlt = { medio: '', tarjeta: '', ...cargar(LS_PAGO, {}) };   // lo últim
 const guardarTarjetas = () => { localStorage.setItem(LS_TARJETAS, JSON.stringify(tarjetas)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); if (typeof renderMisTarjetas === 'function') renderMisTarjetas(); };
 const guardarPagoUlt = () => { try { localStorage.setItem(LS_PAGO, JSON.stringify(pagoUlt)); } catch {} };
 
-function agregarTarjeta(texto) {
-  const n = (texto !== undefined ? texto : (prompt('Nombre de la tarjeta (ej: Cordobesa, Visa Galicia)') || '')).trim();
+async function agregarTarjeta(texto) {
+  const n = (texto !== undefined ? texto : await pedirTexto({ titulo: 'Nueva tarjeta', placeholder: 'Ej: Cordobesa, Visa Galicia' })).trim();
   if (!n) return '';
   const ya = tarjetas.find(t => t.nombre.toLowerCase() === n.toLowerCase());
   if (ya) return ya.nombre;
@@ -33,12 +33,12 @@ function pintarPago(c, cuotas) {
 }
 const pintarTodosLosPagos = () => document.querySelectorAll('.pago').forEach(c => { if (c.dataset.fijo === undefined) pintarPago(c); });
 
-document.addEventListener('change', e => {
+document.addEventListener('change', async e => {
   const k = e.target.dataset && e.target.dataset.p, c = e.target.closest && e.target.closest('.pago');
   if (!k || !c) return;
   if (k === 'medio') pagoUlt.medio = e.target.value;
   else if (k === 'tarjeta') {
-    if (e.target.value === '__nueva__') pagoUlt.tarjeta = agregarTarjeta() || pagoUlt.tarjeta;
+    if (e.target.value === '__nueva__') pagoUlt.tarjeta = (await agregarTarjeta()) || pagoUlt.tarjeta;
     else pagoUlt.tarjeta = e.target.value;
   } else return;
   guardarPagoUlt();
@@ -100,9 +100,9 @@ function renderMisTarjetas() {
   }).join('') : '<p class="hint" style="margin:0 0 4px">Todavía no cargaste ninguna tarjeta. Agregá las que usás y después las elegís con un toque al registrar un gasto.</p>')
     + `<div class="mt-nueva"><input id="mtNombre" type="text" placeholder="Nombre (ej: Cordobesa, Visa Galicia)" maxlength="40"><button id="mtAgregar" class="primary">Agregar</button></div>`;
 }
-function renombrarTarjeta(i) {
+async function renombrarTarjeta(i) {
   const t = tarjetas[i]; if (!t) return;
-  const n = (prompt('Nuevo nombre de la tarjeta', t.nombre) || '').trim();
+  const n = await pedirTexto({ titulo: 'Renombrar tarjeta', valor: t.nombre });
   if (!n || n === t.nombre) return;
   const otra = tarjetas.find((x, j) => j !== i && x.nombre.toLowerCase() === n.toLowerCase());
   if (otra && !confirm(`Ya tenés una tarjeta «${otra.nombre}». ¿Unirlas? Los gastos de «${t.nombre}» pasarán a «${otra.nombre}».`)) return;
@@ -115,12 +115,12 @@ function renombrarTarjeta(i) {
   pintarTodosLosPagos(); renderCuotas(); renderHistorial();
   toast(cambiados ? `Tarjeta renombrada (${cambiados} gasto(s) actualizados)` : 'Tarjeta renombrada');
 }
-$('misTarjetas').addEventListener('click', e => {
+$('misTarjetas').addEventListener('click', async e => {
   if (e.target.closest('#mtAgregar')) {
     const inp = $('mtNombre'), n = inp.value.trim();
     if (!n) { toast('Escribí el nombre de la tarjeta'); inp.focus(); return; }
     const ya = tarjetas.some(t => t.nombre.toLowerCase() === n.toLowerCase());
-    agregarTarjeta(n); pintarTodosLosPagos(); renderCuotas(); toast(ya ? 'Esa tarjeta ya estaba cargada' : 'Tarjeta agregada');
+    await agregarTarjeta(n); pintarTodosLosPagos(); renderCuotas(); toast(ya ? 'Esa tarjeta ya estaba cargada' : 'Tarjeta agregada');
     return;
   }
   const r = e.target.closest('[data-mt-ren]'); if (r) { renombrarTarjeta(+r.dataset.mtRen); return; }
@@ -179,9 +179,9 @@ function renderCuotas() {
   $('cuotasCont').innerHTML = h;
 }
 
-$('cuotasCont').addEventListener('click', e => {
+$('cuotasCont').addEventListener('click', async e => {
   if (e.target.closest('#tjAdmin')) { document.querySelector('nav button[data-t=ajustes]').click(); $('misTarjetas').scrollIntoView({ block: 'start' }); return; }
-  if (e.target.closest('#tjNueva')) { if (agregarTarjeta()) { renderCuotas(); pintarTodosLosPagos(); } return; }
+  if (e.target.closest('#tjNueva')) { if (await agregarTarjeta()) { renderCuotas(); pintarTodosLosPagos(); } return; }
   const q = e.target.closest('[data-tj-quitar]');
   if (q) {
     const nom = q.dataset.tjQuitar, usos = gastos.filter(g => g.pago && g.pago.tarjeta === nom).length;

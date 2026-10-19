@@ -498,9 +498,14 @@ function renderStats() {
 }
 
 // ---------- Historial ----------
-const abiertos = new Set();   // compras desplegadas: se mantienen abiertas al corregir algo
+const abiertos = new Set();
+// Modo "seleccionar para borrar varios": se marcan gastos sueltos, compras enteras o días completos
+let modoSel = false;
+const selG = new Set(), selC = new Set();
+const chkSel = (clave, marcado) => `<span class="sel-chk${marcado ? ' on' : ''}" data-sel="${clave}" role="checkbox" aria-checked="${marcado}"><svg class="ic ic-s"><use href="#i-check"/></svg></span>`;
+const estaSel = g => selG.has(g.id) || (!!g.compraId && selC.has(g.compraId));   // compras desplegadas: se mantienen abiertas al corregir algo
 
-const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub' : ''}"><div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
+const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub' : ''}">${modoSel && !enCompra ? chkSel('g:' + g.id, selG.has(g.id)) : ''}<div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
   <div class="metas">
     <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
     ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
@@ -516,7 +521,7 @@ function tarjetaCompra(items) {
   const conciliada = items.every(g => g.conTicket);
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t"><i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small></span></span>
+      <span class="cg-t">${modoSel ? chkSel('c:' + id, selC.has(id)) : ''}<i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small></span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
@@ -545,10 +550,54 @@ function renderHistorial() {
       if (!compras.has(g.compraId)) { const c = { items: [] }; compras.set(g.compraId, c); bloques.push(c); }
       compras.get(g.compraId).items.push(g);
     }
-    return `<div class="dia"><span>${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((t, g) => t + g.monto, 0))}</span></div>
+    return `<div class="dia"><span>${modoSel ? chkSel('d:' + f, gs.every(estaSel)) : ''}${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((t, g) => t + g.monto, 0))}</span></div>
       ${bloques.map(b => (b.items ? tarjetaCompra(b.items) : filaGasto(b.g))).join('')}`;
   }).join('');
 }
+// ---- selección múltiple para borrar ----
+function actualizarBarraSel() {
+  $('barraSel').hidden = !modoSel;
+  $('lista').style.paddingBottom = modoSel ? '90px' : '';
+  $('hSeleccionar').textContent = modoSel ? 'Salir de la selección' : 'Seleccionar para borrar varios';
+  const marcados = gastos.filter(estaSel), total = marcados.reduce((t, g) => t + g.monto, 0);
+  $('selCuenta').textContent = marcados.length ? `${marcados.length} gasto(s) · ${peso(total)}` : 'Tocá lo que querés borrar';
+  $('selBorrar').disabled = !marcados.length;
+}
+function salirSel() { modoSel = false; selG.clear(); selC.clear(); actualizarBarraSel(); renderHistorial(); }
+$('hSeleccionar').addEventListener('click', () => {
+  if (modoSel) { salirSel(); return; }
+  modoSel = true; selG.clear(); selC.clear(); actualizarBarraSel(); renderHistorial();
+});
+$('selCancelar').addEventListener('click', salirSel);
+$('selTodo').addEventListener('click', () => {
+  const todo = gastos.length && gastos.every(estaSel);
+  selG.clear(); selC.clear();
+  if (!todo) gastos.forEach(g => (g.compraId ? selC.add(g.compraId) : selG.add(g.id)));
+  actualizarBarraSel(); renderHistorial();
+});
+$('lista').addEventListener('click', e => {
+  const c = e.target.closest('[data-sel]'); if (!c) return;
+  e.preventDefault(); e.stopPropagation();   // no abrir/cerrar el detalle de la compra al marcarla
+  const [tipo, clave] = [c.dataset.sel.slice(0, 1), c.dataset.sel.slice(2)];
+  const alternar = (set, v) => (set.has(v) ? set.delete(v) : set.add(v));
+  if (tipo === 'g') alternar(selG, clave);
+  else if (tipo === 'c') alternar(selC, clave);
+  else {
+    const dia = gastos.filter(g => g.fecha === clave), todo = dia.every(estaSel);
+    dia.forEach(g => { const set = g.compraId ? selC : selG, v = g.compraId || g.id; if (todo) set.delete(v); else set.add(v); });
+  }
+  actualizarBarraSel(); renderHistorial();
+}, true);
+$('selBorrar').addEventListener('click', () => {
+  const marcados = gastos.filter(estaSel); if (!marcados.length) return;
+  const total = marcados.reduce((t, g) => t + g.monto, 0);
+  if (!confirm(`¿Borrar ${marcados.length} gasto(s) por ${peso(total)}?\nNo se puede deshacer.`)) return;
+  gastos = gastos.filter(g => !estaSel(g));
+  selC.forEach(id => abiertos.delete(id));
+  persistir(); salirSel();
+  if (typeof renderCuotas === 'function') renderCuotas();
+  toast(`${marcados.length} gasto(s) borrado(s)`);
+});
 // recuerda qué compras están abiertas (el evento "toggle" no se propaga: se escucha en captura)
 $('lista').addEventListener('toggle', e => {
   const cid = e.target.dataset && e.target.dataset.cid; if (!cid) return;

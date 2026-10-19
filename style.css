@@ -229,7 +229,7 @@ summary > span:first-child { flex: 1; }
 .cn-fila.cn-sin { border-color: rgba(251, 191, 36, .4); }
 .cn-t b { display: block; font-size: 16px; letter-spacing: -.01em; }
 .cn-t small { display: block; color: var(--mute); font-size: 12.5px; margin-bottom: 8px; }
-.cn-fila select { min-height: 42px; font-size: 14px; }
+.cn-fila select, .cn-fila input[type=text] { min-height: 42px; font-size: 14px; }
 .cn-campos { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px; }
 .cn-campos label { margin-top: 0; }
 .cn-campos input { min-height: 46px; font-size: 18px; font-weight: 600; }

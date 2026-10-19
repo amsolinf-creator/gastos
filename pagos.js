@@ -154,7 +154,9 @@ function renderCuotasInterno() {
   let h = `<div class="cards"><div class="card"><small>A pagar en ${etqMes(cur)}</small><b>${peso(delMes)}</b></div><div class="card"><small>Saldo en cuotas</small><b>${peso(saldo)}</b></div></div>`;
 
   if (planes.some(p => p.faltan > 0)) {
-    const meses = Array.from({ length: 6 }, (_, i) => cur + i).map(k => ({ k, v: planes.reduce((t, p) => t + cuotaDelMes(p, k), 0) }));
+    // desde este mes hasta la última cuota pendiente (al menos 6 meses, como máximo 3 años)
+    const hasta = Math.min(cur + 35, Math.max(cur + 5, ...planes.filter(p => p.faltan > 0).map(p => p.fin)));
+    const meses = Array.from({ length: hasta - cur + 1 }, (_, i) => cur + i).map(k => ({ k, v: planes.reduce((t, p) => t + cuotaDelMes(p, k), 0) }));
     const max = Math.max(...meses.map(x => x.v), 1);
     h += `<h2>Próximos meses</h2><div class="panel">${meses.map(x => `<div class="cat"><div class="top"><span>${etqMes(x.k)}</span><span>${peso(x.v)}</span></div><div class="pista"><i style="width:${x.v / max * 100}%"></i></div></div>`).join('')}</div>`;
   }

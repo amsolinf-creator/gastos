@@ -141,6 +141,22 @@ $('misTarjetas').addEventListener('change', e => {
   tarjetas[+i].desde = Number(e.target.value) === 1 ? 1 : 0; guardarTarjetas(); renderCuotas();
 });
 
+// Cada tarjeta tiene su propio tono suave (se asigna una vez y se conserva) para distinguirlas de un vistazo
+const TONOS = [210, 150, 30, 280, 340, 180, 55, 0];
+function tonoTarjeta(nom) {
+  const t = tarjetas.find(x => x.nombre === nom);
+  if (t) {
+    if (t.tono === undefined) {
+      const usados = new Set(tarjetas.map(x => x.tono)), libre = TONOS.find(h => !usados.has(h));
+      t.tono = libre !== undefined ? libre : TONOS[tarjetas.indexOf(t) % TONOS.length];
+      try { localStorage.setItem(LS_TARJETAS, JSON.stringify(tarjetas)); } catch {}
+    }
+    return t.tono;
+  }
+  let h = 0; for (const ch of String(nom)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+
 // ---------- Pantalla de Cuotas ----------
 function renderCuotas() {
   try { renderCuotasInterno(); }
@@ -173,7 +189,7 @@ function renderCuotasInterno() {
         <div class="pista"><i style="width:${pct}%"></i></div>
         <small class="plan-f">${p.faltan > 0 ? `Última cuota: ${etqMes(p.fin)}` : `Terminó en ${etqMes(p.fin)}`}</small></div>`;
     };
-    h += `<div class="tj"><div class="tj-cab"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
+    h += `<div class="tj" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
       <div class="tj-res"><div><small>Este mes</small><b>${peso(mes)}</b></div><div><small>Mes próximo</small><b>${peso(prox)}</b></div><div><small>Saldo</small><b>${peso(sal)}</b></div></div>
       ${t ? `<label class="tj-conf">Primera cuota de cada compra
         <select data-tj-desde="${esc(nom)}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>` : ''}

@@ -317,3 +317,28 @@ nav button.on .ic { filter: drop-shadow(0 0 8px rgba(34, 211, 238, .5)); }
 .rc-marco i[data-rc=nw] { left: -15px; top: -15px; } .rc-marco i[data-rc=ne] { right: -15px; top: -15px; }
 .rc-marco i[data-rc=sw] { left: -15px; bottom: -15px; } .rc-marco i[data-rc=se] { right: -15px; bottom: -15px; }
 .rc-barra { display: flex; gap: 8px; margin-bottom: 10px; } .rc-barra button { flex: 1; margin: 0; }
+
+/* Medio de pago y cuotas */
+.pago { margin: 14px 0 0; }
+.pago .lab { display: inline-flex; align-items: center; gap: 6px; }
+.pago-cred[hidden] { display: none; }
+.pago-modal { text-align: left; }
+.pago-modal label { margin-top: 10px; }
+.mini-pago { min-height: 34px; padding: 4px 12px; font-size: 13px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); color: var(--mute); border-radius: 999px; }
+.mini-pago.on { color: var(--accent-2); border-color: rgba(34, 211, 238, .45); }
+.cg-pago { width: 100%; margin: 10px 0 0; min-height: 44px; background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: var(--text); border-radius: var(--r-s); display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+.tj { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+.tj-cab { display: flex; align-items: center; justify-content: space-between; font-size: 18px; }
+.tj-cab b { display: inline-flex; align-items: center; gap: 8px; }
+.tj-x { background: transparent; color: var(--mute); min-height: 36px; width: 36px; padding: 0; }
+.tj-res { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
+.tj-res small { display: block; color: var(--mute); font-size: 12px; } .tj-res b { font-size: 16px; }
+.tj-conf { margin-top: 8px; }
+.plan { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.plan-t b, .plan-m b { display: block; } .plan-t small, .plan-m small, .plan-f { display: block; color: var(--mute); font-size: 12.5px; margin-top: 2px; }
+.plan { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; }
+.plan-m { text-align: right; } .plan .pista, .plan-f { grid-column: 1 / -1; }
+.plan .pista { height: 6px; background: rgba(255, 255, 255, .07); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+.plan .pista i { display: block; height: 100%; background: var(--accent-2); border-radius: 4px; }
+.tj-ter { margin-top: 12px; } .tj-ter summary { color: var(--mute); cursor: pointer; font-size: 14px; }
+nav button span { font-size: 10px; }

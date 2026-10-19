@@ -9,6 +9,8 @@ const redondear2 = n => Math.round(n * 100) / 100;
 const topeLargo = () => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(35000) : undefined);
 
 // "TOMATE PERITA X KG" => "Tomate perita x kg"
+// El nombre del producto queda tal cual figura en el ticket (solo se acomodan los espacios)
+const nombreTicket = d => String(d).trim().replace(/\s+/g, ' ');
 const limpiarDescTicket = d => { const t = String(d).trim().replace(/\s+/g, ' ').toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
 
 // ---------- Foto: se reduce antes de enviarla (más rápido y gasta menos cuota) ----------
@@ -312,7 +314,7 @@ function pintarFilas() {
     const chip = !g || l.destino === 'ignorar' ? '' : (Math.abs(dif) < 1 ? '<span class="tag">igual al estimado</span>' : `<span class="tag ${dif > 0 ? 'warn' : ''}">${dif > 0 ? '+' : '−'}${peso(Math.abs(dif))} vs estimado</span>`);
     return `<div class="cn-fila${l.destino === 'ignorar' ? ' cn-ign' : ''}" data-i="${i}">
       <div class="cn-t"><b>${esc(l.desc)}</b>${cn.origen === 'foto' ? '<small>renglón del ticket</small>' : '<small>producto de la compra</small>'}</div>
-      ${l.destino === 'nuevo' ? `<input data-cn="nombre" type="text" value="${esc(l.nombre !== undefined ? l.nombre : limpiarDescTicket(l.desc))}" aria-label="Nombre del producto">` : ''}
+      ${l.destino === 'nuevo' ? `<input data-cn="nombre" type="text" value="${esc(l.nombre !== undefined ? l.nombre : nombreTicket(l.desc))}" aria-label="Nombre del producto">` : ''}
       <select data-cn="destino" aria-label="Producto de la compra">${opciones(l.destino)}</select>
       <div class="cn-campos">
         <label>Cantidad<input data-cn="cant" type="number" inputmode="decimal" step="any" value="${l.cant === '' ? '' : l.cant}" placeholder="—"></label>
@@ -361,8 +363,8 @@ function guardarConciliacion() {
   for (const l of cn.lineas) {
     const monto = numCn(l.monto);
     if (l.destino === 'ignorar' || !(monto > 0)) continue;
-    if (l.destino === 'nuevo') { nuevos.push({ producto: (l.nombre !== undefined ? String(l.nombre).trim() : '') || limpiarDescTicket(l.desc), monto, cant: numCn(l.cant) }); continue; }
-    const a = acum.get(l.destino) || { monto: 0, cant: 0 }; a.monto += monto; a.cant += numCn(l.cant); acum.set(l.destino, a);
+    if (l.destino === 'nuevo') { nuevos.push({ producto: (l.nombre !== undefined ? String(l.nombre).trim() : '') || nombreTicket(l.desc), monto, cant: numCn(l.cant) }); continue; }
+    const a = acum.get(l.destino) || { monto: 0, cant: 0, nombres: [] }; a.monto += monto; a.cant += numCn(l.cant); if (cn.origen === 'foto' && !a.nombres.includes(nombreTicket(l.desc))) a.nombres.push(nombreTicket(l.desc)); acum.set(l.destino, a);
   }
   if (cn.nuevo && !cn.cid) cn.cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const conMonto = acum.size + nuevos.length;
@@ -375,6 +377,7 @@ function guardarConciliacion() {
     if (acum.has(g.id)) {
       if (!(g.estimado > 0)) g.estimado = g.monto;
       g.monto = redondear2(acum.get(g.id).monto); g.conTicket = true;
+      if (acum.get(g.id).nombres.length) g.producto = acum.get(g.id).nombres.join(' / ');   // el nombre del ticket reemplaza al que dictaste
       if (acum.get(g.id).cant) g.cantidadReal = acum.get(g.id).cant;
     }
     resultado.push(g);

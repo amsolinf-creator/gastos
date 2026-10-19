@@ -32,6 +32,7 @@
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.7-5.4A8.4 8.4 0 1 1 21 11.5z"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
     <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
   </svg>
 
@@ -73,6 +74,7 @@
         <input id="cCaja" type="number" inputmode="decimal" placeholder="Ej: 15400">
       </label>
       <div id="cDif" class="dif"></div>
+      <div id="pagoCompra" class="pago"></div>
       <div class="row">
         <button id="cVaciar" class="ghost">Vaciar</button>
         <button id="cGuardar" class="primary">Guardar compra</button>
@@ -106,6 +108,7 @@
         <h2>Revisá antes de guardar</h2>
         <div id="items"></div>
         <button id="agregarFila" class="ghost" style="width:100%;margin-top:10px">+ Agregar renglón</button>
+        <div id="pagoGasto" class="pago"></div>
         <div class="row">
           <button id="descartar" class="ghost">Descartar</button>
           <button id="guardar" class="primary">Guardar</button>
@@ -129,6 +132,14 @@
       <div id="categorias" class="panel"></div>
       <h2 id="lugTitulo">Por lugar</h2>
       <div id="lugares" class="panel"></div>
+      <h2 id="medTitulo">Por medio de pago</h2>
+      <div id="medios" class="panel"></div>
+    </section>
+
+    <!-- CUOTAS -->
+    <section id="tab-cuotas" class="tab">
+      <h1>Cuotas</h1>
+      <div id="cuotasCont"></div>
     </section>
 
     <!-- HISTORIAL -->
@@ -279,6 +290,7 @@
     <button data-t="compra" class="on"><svg class="ic"><use href="#i-cart"/></svg><span>Compra</span></button>
     <button data-t="registrar"><svg class="ic"><use href="#i-plus"/></svg><span>Gasto</span></button>
     <button data-t="stats"><svg class="ic"><use href="#i-chart"/></svg><span>Estadísticas</span></button>
+    <button data-t="cuotas"><svg class="ic"><use href="#i-card"/></svg><span>Cuotas</span></button>
     <button data-t="historial"><svg class="ic"><use href="#i-list"/></svg><span>Historial</span></button>
     <button data-t="ajustes"><svg class="ic"><use href="#i-sliders"/></svg><span>Ajustes</span></button>
   </nav>
@@ -307,7 +319,8 @@
   <script src="parser.js"></script>
   <script src="xlsx.js"></script>
   <script src="app.js"></script>
-  <script src="respaldo.js"></script>
+  <script src="pagos.js"></script>
+<script src="respaldo.js"></script>
   <script src="ticket.js"></script>
 </body>
 </html>

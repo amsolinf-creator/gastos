@@ -524,6 +524,7 @@ function tarjetaCompra(items) {
         <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
         <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
       </div>
+      <label class="cg-fecha">Fecha de la compra<input type="date" data-cid-fecha="${id}" value="${items[0].fecha}" max="${hoyISO()}"></label>
       <button class="cg-pago" data-pago-compra="${id}"><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(pagoTxt(items[0].pago) || 'Elegir el medio de pago')}</button>
       <button class="cg-conc" data-conciliar="${id}"><svg class="ic ic-s"><use href="#i-camera"/></svg> ${conciliada ? 'Volver a conciliar con el ticket' : 'Conciliar con el ticket'}</button>
       ${items.map(g => filaGasto(g, true)).join('')}
@@ -558,6 +559,13 @@ $('lista').addEventListener('change', e => {
   const cid = e.target.dataset.cidLugar; if (!cid) return;
   gastos.filter(g => g.compraId === cid).forEach(g => { g.lugar = e.target.value; });
   persistir(); renderHistorial(); toast('Lugar de la compra actualizado');
+});
+// cambiar la fecha de toda la compra
+$('lista').addEventListener('change', e => {
+  const cid = e.target.dataset.cidFecha; if (!cid) return;
+  const f = e.target.value; if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+  gastos.filter(g => g.compraId === cid).forEach(g => { g.fecha = f; });
+  persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas(); toast('Fecha de la compra actualizada');
 });
 // Corregir categoría o lugar de un gasto ya guardado (la categoría corregida se recuerda para el futuro)
 $('lista').addEventListener('change', async e => {

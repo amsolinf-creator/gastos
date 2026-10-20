@@ -374,3 +374,9 @@ nav button span { font-size: 10px; }
 .tj-cab svg { color: hsl(var(--h) 80% 72%); }
 .tj .plan { border-top-color: hsl(var(--h) 50% 65% / .25); }
 .tj .plan .pista i { background: hsl(var(--h) 75% 62%); }
+
+/* Compra desplegada: se distingue del resto del historial */
+details.compra-g[open] { background: rgba(56, 189, 248, .11); border-color: rgba(56, 189, 248, .55); border-left: 5px solid #38bdf8; box-shadow: 0 6px 22px rgba(56, 189, 248, .12); margin-top: 14px; margin-bottom: 14px; }
+details.compra-g[open] > summary { background: rgba(56, 189, 248, .14); }
+details.compra-g[open] .cg-det { border-top-color: rgba(56, 189, 248, .35); }
+details.compra-g[open] .gasto.sub { background: rgba(56, 189, 248, .09); border: 1px solid rgba(56, 189, 248, .2); }

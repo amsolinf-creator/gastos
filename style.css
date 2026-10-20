@@ -388,3 +388,10 @@ details.compra-g[open] .gasto.sub { background: rgba(56, 189, 248, .09); border:
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip-l { min-height: 36px; padding: 4px 14px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); color: var(--text); font-size: 14px; }
 .chip-l.on { background: rgba(34, 211, 238, .18); border-color: var(--accent-2); color: var(--accent-2); }
+
+/* Ordenar categorías */
+.cat-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.cat-nom { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.cat-nom b { font-size: 15px; } .cat-nom small { color: var(--mute); font-size: 12px; }
+.cat-fila .ghost { flex: 0 0 auto; margin: 0; min-height: 40px; padding: 0 14px; font-size: 14px; }
+.cat-modal { text-align: left; } .cat-modal label { margin-top: 12px; }

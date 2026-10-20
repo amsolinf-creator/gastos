@@ -108,6 +108,15 @@
         <h2>Revisá antes de guardar</h2>
         <div id="items"></div>
         <button id="agregarFila" class="ghost" style="width:100%;margin-top:10px">+ Agregar renglón</button>
+        <div id="lugarCampo" class="lugar-campo" hidden>
+          <span class="lab"><svg class="ic ic-s"><use href="#i-pin"/></svg> ¿Dónde lo compraste? <span class="nota">· opcional</span></span>
+          <div class="dict-fila">
+            <button id="lMic" class="mic mini" type="button" aria-label="Dictar el lugar"><svg class="ic"><use href="#i-mic"/></svg></button>
+            <input id="lugarGasto" type="text" maxlength="40" autocomplete="off" placeholder="Ej: Avalle repuestos">
+          </div>
+          <p id="lEstado" class="hint estado"></p>
+          <div id="lugarChips" class="chips"></div>
+        </div>
         <div id="pagoGasto" class="pago"></div>
         <div class="row">
           <button id="descartar" class="ghost">Descartar</button>

@@ -145,6 +145,7 @@ document.querySelectorAll('nav button').forEach(b => b.addEventListener('click',
   if (b.dataset.t === 'historial') renderHistorial();
   if (b.dataset.t === 'registrar') renderHoy();
   if (b.dataset.t === 'compra') renderCompra();
+  if (b.dataset.t === 'ajustes') renderCategoriasAjustes();
 }));
 
 // ---------- Dictado por voz ----------
@@ -708,6 +709,46 @@ $('guardarAjustes').addEventListener('click', () => {
   localStorage.setItem(LS_AJUSTES, JSON.stringify(ajustes));
   toast('Ajustes guardados');
 });
+
+// ---------- Ordenar categorías: renombrar o unir ----------
+function renderCategoriasAjustes() {
+  const c = $('catLista'); if (!c) return;
+  const uso = {}; gastos.forEach(g => { if (g.categoria) uso[g.categoria] = (uso[g.categoria] || 0) + 1; });
+  const nombres = [...new Set([...CATEGORIAS, ...Object.keys(uso)])].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  c.innerHTML = nombres.map(n => {
+    const base = CATEGORIAS.includes(n), k = uso[n] || 0;
+    return `<div class="cat-fila"><span class="cat-nom"><i class="dot" style="--c:${colorCat(n)}"></i><b>${esc(n)}</b><small>${k} gasto(s)${base ? ' · base' : ''}</small></span>${base ? '' : `<button class="ghost" data-cat-cambiar="${esc(n)}">Cambiar o unir</button>`}</div>`;
+  }).join('');
+}
+function aplicarCambioCategoria(viejo, nuevo) {
+  let n = 0;
+  gastos.forEach(g => { if (g.categoria === viejo) { g.categoria = nuevo; n++; } });
+  for (const k of Object.keys(catsAprendidas)) if (catsAprendidas[k] === viejo) catsAprendidas[k] = nuevo;
+  localStorage.setItem(LS_CATS, JSON.stringify(catsAprendidas));
+  for (const k of Object.keys(lugarCat)) if (lugarCat[k] === viejo) lugarCat[k] = nuevo;
+  localStorage.setItem(LS_LUGCAT, JSON.stringify(lugarCat));
+  persistir(); renderCategoriasAjustes(); renderHistorial();
+  toast(`${n} gasto(s) pasaron a «${nuevo}»`);
+}
+$('catLista').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat-cambiar]'); if (!b) return;
+  const viejo = b.dataset.catCambiar;
+  const otras = todasCategorias().filter(c => c !== viejo);
+  mostrarModal({
+    titulo: `«${viejo}»`, ok: 'Pasar los gastos', sec: 'Cancelar',
+    html: `<div class="cat-modal"><label>Unir con otra categoría<select id="catDestino"><option value="">Elegí una…</option>${otras.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
+      <label>…o ponerle otro nombre<input id="catNuevoNombre" class="pedir" type="text" maxlength="40" placeholder="Nuevo nombre" autocomplete="off"></label></div>`,
+    alOk: () => {
+      const escrito = ($('catNuevoNombre').value || '').trim(), elegido = $('catDestino').value;
+      const destino = escrito ? capital(escrito) : elegido;
+      if (!destino) { toast('Elegí una categoría o escribí un nombre'); return; }
+      if (destino.toLowerCase() === viejo.toLowerCase() && destino === viejo) return;
+      const igual = todasCategorias().find(c => c.toLowerCase() === destino.toLowerCase());
+      aplicarCambioCategoria(viejo, igual || destino);
+    },
+  });
+});
+renderCategoriasAjustes();
 
 // Prueba cada IA por separado y muestra el motivo exacto si falla
 $('probarIA').addEventListener('click', async () => {

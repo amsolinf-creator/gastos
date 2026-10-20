@@ -48,7 +48,7 @@ function categoriaDe(producto, sugerida, libre = true) {
 }
 
 // Categorías para los selectores: las base, más todas las que usaste alguna vez
-const todasCategorias = (actual = '') => [...new Set([...CATEGORIAS.filter(c => c !== 'Otros'), ...gastos.map(g => g.categoria).filter(Boolean), 'Otros', actual].filter(Boolean))];
+const todasCategorias = (actual = '') => [...new Set([...CATEGORIAS, ...gastos.map(g => g.categoria).filter(Boolean), 'Otros', actual].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'es', { sensitivity: 'base' }));   // siempre en orden alfabético
 const opcionesCategoria = actual => todasCategorias(actual).map(c => `<option${c === actual ? ' selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__nueva__">➕ Nueva categoría…</option>';
 // Ventana propia para pedir un texto (el prompt() del navegador falla en algunos celulares)
 function pedirTexto({ titulo, ayuda = '', valor = '', placeholder = '', ok = 'Guardar' }) {

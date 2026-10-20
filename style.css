@@ -380,3 +380,11 @@ details.compra-g[open] { background: rgba(56, 189, 248, .11); border-color: rgba
 details.compra-g[open] > summary { background: rgba(56, 189, 248, .14); }
 details.compra-g[open] .cg-det { border-top-color: rgba(56, 189, 248, .35); }
 details.compra-g[open] .gasto.sub { background: rgba(56, 189, 248, .09); border: 1px solid rgba(56, 189, 248, .2); }
+
+/* ¿Dónde lo compraste? */
+.lugar-campo { margin-top: 14px; padding: 12px; background: rgba(56, 189, 248, .07); border: 1px solid rgba(56, 189, 248, .3); border-radius: var(--r); }
+.lugar-campo .lab { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 8px; }
+.lugar-campo[hidden] { display: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-l { min-height: 36px; padding: 4px 14px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); color: var(--text); font-size: 14px; }
+.chip-l.on { background: rgba(34, 211, 238, .18); border-color: var(--accent-2); color: var(--accent-2); }

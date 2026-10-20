@@ -28,6 +28,7 @@ function categoriaRubro(producto) {
 }
 
 // Si lo dictado es justo un comercio de tu lista de lugares ("kiosco", "quiosco", "supermercado"), ese es el rubro
+const categoriaDeComercio = producto => { const c = comercioExacto(producto); return c ? (lugarCat[c.toLowerCase()] || c) : null; };
 const comercioExacto = producto => lugares.find(l => parecido(producto, l) === 1) || null;
 
 // Lo que se dictó sirve de categoría cuando no hay una conocida: "pintura" => "Pintura"
@@ -40,7 +41,7 @@ function categoriaLibre(producto) {
 function categoriaDe(producto, sugerida, libre = true) {
   return catsAprendidas[claveCat(producto)]
     || categoriaRubro(producto)
-    || comercioExacto(producto)
+    || categoriaDeComercio(producto)
     || (sugerida && sugerida !== 'Otros' ? sugerida : null)
     || (adivinarCategoria(producto) !== 'Otros' ? adivinarCategoria(producto) : null)
     || (libre ? categoriaLibre(producto) : null)
@@ -80,6 +81,8 @@ const LS_LUGAR = 'gastos.lugar.v1';
 const LUGARES_BASE = ['Supermercado', 'Verdulería', 'Almacén', 'Carnicería', 'Panadería', 'Farmacia', 'Kiosco', 'Feria', 'Mercado', 'Online'];
 let lugares = cargar(LS_LUGARES, LUGARES_BASE);
 let lugarActual = cargar(LS_LUGAR, '');
+const LS_LUGCAT = 'gastos.lugarCat.v1';
+let lugarCat = cargar(LS_LUGCAT, {});   // { "avalle repuestos": "Auto" }: la categoría que usaste con cada lugar
 
 const opcionesLugar = sel => {
   const lista = sel && !lugares.includes(sel) ? [...lugares, sel] : lugares;
@@ -350,8 +353,36 @@ async function interpretar() {
 }
 $('interpretar').addEventListener('click', interpretar);
 
+// El campo "¿Dónde lo compraste?" aparece solo si lo dictado no coincide con un lugar de tu lista
+const sinLugar = p => p.producto.trim() && !lugarDe(p.producto);
+function actualizarCampoLugar() {
+  const necesita = pendientes.some(sinLugar);
+  $('lugarCampo').hidden = !necesita;
+  if (!necesita) return;
+  const uso = {}; gastos.forEach(g => { if (g.lugar) uso[g.lugar] = (uso[g.lugar] || 0) + 1; });
+  const orden = [...lugares].sort((a, b) => (uso[b] || 0) - (uso[a] || 0)).slice(0, 10), v = $('lugarGasto').value.trim().toLowerCase();
+  $('lugarChips').innerHTML = orden.map(l => `<button type="button" class="chip-l${l.toLowerCase() === v ? ' on' : ''}" data-l="${esc(l)}">${esc(l)}</button>`).join('');
+}
+$('lugarChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-l]'); if (!b) return;
+  $('lugarGasto').value = $('lugarGasto').value.trim().toLowerCase() === b.dataset.l.toLowerCase() ? '' : b.dataset.l;
+  actualizarCampoLugar();
+});
+$('lugarGasto').addEventListener('input', actualizarCampoLugar);
+configurarMic($('lMic'), $('lugarGasto'), $('lEstado'), () => { $('lEstado').textContent = ''; actualizarCampoLugar(); });
+// lugar escrito o dictado: si ya existe en tu lista se usa ese, si no se agrega
+function lugarElegido() {
+  const t = $('lugarGasto').value.trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  const ya = lugares.find(l => l.toLowerCase() === t.toLowerCase());
+  if (ya) return ya;
+  const nuevo = capital(t); lugares.push(nuevo); localStorage.setItem(LS_LUGARES, JSON.stringify(lugares)); renderLugares();
+  return nuevo;
+}
+
 function renderPendientes() {
   $('resultado').hidden = !pendientes.length;
+  actualizarCampoLugar();
   $('items').innerHTML = pendientes.map((p, i) => `
     <div class="item" data-i="${i}">
       <button class="quitar" data-q="${i}" aria-label="Quitar">${ICX}</button>
@@ -366,6 +397,7 @@ $('items').addEventListener('input', e => {
   const fila = e.target.closest('.item'); if (!fila) return;
   const k = e.target.dataset.k;
   pendientes[+fila.dataset.i][k] = k === 'monto' ? Number(e.target.value) : e.target.value;
+  if (k === 'producto') actualizarCampoLugar();
   if (k === 'categoria') pendientes[+fila.dataset.i].catEditada = true;
 });
 // "➕ Nueva categoría…": se pide el nombre y queda disponible en todos los selectores
@@ -387,7 +419,7 @@ $('agregarFila').addEventListener('click', () => {
 $('descartar').addEventListener('click', limpiarRegistro);
 
 function limpiarRegistro() {
-  pendientes = []; $('texto').value = ''; renderPendientes();
+  pendientes = []; $('lugarGasto').value = ''; $('texto').value = ''; renderPendientes();
   $('micEstado').textContent = 'Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.';
 }
 
@@ -396,13 +428,22 @@ $('guardar').addEventListener('click', () => {
   if (!validos.length) { toast('Completá producto y monto'); return; }
   const pago = leerPago($('pagoGasto')); if (pago === null) return;
   const dolar = Number(ajustes.dolar) || null;
+  const lugarTipeado = validos.some(sinLugar) ? lugarElegido() : '';
   validos.forEach(p => {
     if (p.catEditada) aprenderCategoria(p.producto, p.categoria);
+    let lugar = lugarDe(p.producto), categoria = p.categoria;
+    if (!lugar && lugarTipeado) {
+      lugar = lugarTipeado;
+      // el lugar recuerda la categoría que usaste con él (y la propone cuando no hay otra mejor)
+      if (p.catEditada && categoria !== 'Otros') lugarCat[lugar.toLowerCase()] = categoria;
+      else if (categoria === 'Otros' && lugarCat[lugar.toLowerCase()]) categoria = lugarCat[lugar.toLowerCase()];
+    }
     gastos.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      producto: p.producto.trim(), monto: p.monto, categoria: p.categoria, fecha: p.fecha, lugar: lugarDe(p.producto), dolar, ...conPago(pago),
+      producto: p.producto.trim(), monto: p.monto, categoria, fecha: p.fecha, lugar, dolar, ...conPago(pago),
     });
   });
+  localStorage.setItem(LS_LUGCAT, JSON.stringify(lugarCat));
   persistir(); limpiarRegistro(); renderHoy(); reiniciarCuotas($('pagoGasto'));
   toast(`${validos.length} gasto(s) guardado(s)`);
 });

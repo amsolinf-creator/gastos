@@ -230,6 +230,9 @@ function parseSegmento(s) {
     producto = limpiarNombre(m[1]) || limpiarNombre(m[4]); precio = +m[2]; uni = normUnidad(m[3]); etiqueta = etiquetaDe(m[3]);
   } else if ((m = s.match(new RegExp(`^(?:el|la)\\s+${UNI}\\s+de\\s+(.+?)\\s*(?:\\b(?:sale|cuesta|esta|vale|a)\\b)?\\s*${NUM}$`)))) {
     producto = limpiarNombre(m[2]); precio = +m[3]; uni = normUnidad(m[1]); etiqueta = etiquetaDe(m[1]);
+  } else if ((m = s.match(new RegExp(`^(.+?)\\s+(?:el|la|por|x|cada|/)\\s*${UNI}\\s*(?:\\b(?:a|sale|cuesta|esta|vale)\\b)?\\s*${NUM}$`))) && limpiarNombre(m[1])) {
+    // "tomate el kilo 3000" / "tomate por kilo a 3000": el precio viene después de la unidad
+    producto = limpiarNombre(m[1]); uni = normUnidad(m[2]); etiqueta = etiquetaDe(m[2]); precio = +m[3];
   }
   if (producto) {
     if (uni === 'docena') { precio /= 12; uni = 'u'; }
@@ -284,6 +287,14 @@ function interpretarPreciosLocal(texto) {
       continue;
     }
     seg = seg.replace(VERBOS_EDITAR, '').replace(/^(?:el |los )?precios? (?:del? (?:la |el |los |las )?)?/, '');
+    // en la lista de precios, "tomate kilo 3000" (sin "el") también es un precio por kilo
+    const mb = seg.match(new RegExp(`^(.+?)\\s+${UNI}\\s*(?:\\b(?:a|sale|cuesta|esta|vale)\\b)?\\s*${NUM}$`));
+    if (mb && limpiarNombre(mb[1])) {
+      let u = normUnidad(mb[2]), pr = +mb[3];
+      if (u === 'docena') { pr /= 12; u = 'u'; }
+      acciones.push({ accion: 'precio', producto: limpiarNombre(mb[1]), precio: pr, unidad: u === 'g' ? 'kg' : u, etiqueta: etiquetaDe(mb[2]) || '' });
+      continue;
+    }
     const r = parseSegmento(seg);
     if (!r) { dudosos++; continue; }
     if (r.tipo === 'precio') acciones.push({ accion: 'precio', producto: r.producto, precio: r.precio, unidad: r.unidad, etiqueta: r.etiqueta || '' });

@@ -1,7 +1,7 @@
 // ---------- Guía rápida dentro de la app (Ajustes → Cómo usar la app) ----------
 const AYUDA = [
   { t: 'Instalar la app', p: [
-    'En Chrome, tocá los tres puntos ⋮ y elegí «Instalar aplicación» (o «Agregar a la pantalla principal»).',
+    'Abrí Ajustes: arriba de todo, tocá el botón «Instalar ahora». Si no aparece el botón, usá el menú de Chrome: tocá los tres puntos ⋮ y elegí «Instalar aplicación» (o «Agregar a la pantalla principal»).',
     'Si usás iPhone: en Safari tocá Compartir → «Agregar a inicio».',
     'Queda en tu pantalla de inicio y se abre a pantalla completa. Tus datos se guardan solo en tu celular.' ] },
   { t: 'Lista de precios por voz', p: [

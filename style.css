@@ -395,3 +395,15 @@ details.compra-g[open] .gasto.sub { background: rgba(56, 189, 248, .09); border:
 .cat-nom b { font-size: 15px; } .cat-nom small { color: var(--mute); font-size: 12px; }
 .cat-fila .ghost { flex: 0 0 auto; margin: 0; min-height: 40px; padding: 0 14px; font-size: 14px; }
 .cat-modal { text-align: left; } .cat-modal label { margin-top: 12px; }
+
+/* Guía rápida */
+#ayudaCont { margin-top: 6px; }
+details.ayuda-tema { margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; border-top: 1px solid var(--line); }
+.ayuda-tema > summary { justify-content: flex-start; gap: 12px; padding: 12px 2px; font-weight: 600; font-size: 15px; }
+.ayuda-tema > summary > span:first-child { flex: 0 0 26px; }
+.ayuda-tema > summary > span:last-child { flex: 1; }
+.ayuda-tema > summary::after { margin-left: auto; }
+.ayuda-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(34, 211, 238, .16); color: var(--accent-2); font-size: 13px; }
+.ayuda-tema ol { margin: 0 0 12px; padding-left: 40px; color: var(--mute); font-size: 14px; line-height: 1.5; }
+.ayuda-tema li { margin-top: 6px; }
+details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); margin-bottom: 3px; }

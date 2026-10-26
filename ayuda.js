@@ -12,6 +12,7 @@ const AYUDA = [
   { t: 'Hacer la compra con el carrito', p: [
     'En Compra, con el modo «Carrito», tocá el micrófono y dictá lo que ponés en el changuito: «dos kilos de tomate», «300 gramos de queso», «cuatro leches».',
     'Si no decís kilo, gramo o litro, la app cuenta por unidad.',
+    'Para productos con etiqueta de precio (balanza o góndola), tocá el botón de la cámara junto al micrófono: la IA lee el nombre, el peso y el precio, y lo agrega al carrito.',
     'Revisá lo que entendió y tocá ✓. Abajo ves el total estimado.' ] },
   { t: 'Guardar con el total de la caja', p: [
     'Al llegar a la caja, escribí el total que te cobran en «Total que marca la caja».',

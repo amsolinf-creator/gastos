@@ -102,6 +102,11 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
     },
     required: ['total', 'lineas'],
   };
+  return llamarGeminiImagenes(prompt, schema, imagenes);
+}
+
+// Pedido a Gemini con una o más imágenes; si el modelo está saturado o sin cuota se prueba el de respaldo
+async function llamarGeminiImagenes(prompt, schema, imagenes) {
   const modelos = [...new Set([ajustes.modelo || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
   let ultimo = '';
   for (const m of modelos) {
@@ -122,6 +127,35 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
     if (![429, 404, 503].includes(r.status)) break;   // cuota agotada, modelo inexistente o saturado: se prueba el otro
   }
   throw new Error(ultimo);
+}
+
+// ---------- Etiquetas de precio (balanza o góndola) ----------
+async function leerEtiquetas(imagenes) {
+  const prompt = `Cada imagen es la etiqueta de un producto de un comercio argentino: puede ser la etiqueta de una balanza (producto fraccionado, con peso y precio total) o la etiqueta de precio de una góndola. Devolvé en JSON la lista "etiquetas", UNA por imagen, con:
+- "producto": el nombre tal cual figura en la etiqueta.
+- "cantidad": el peso neto o la cantidad comprada (número). Si es una etiqueta de góndola sin peso, 1.
+- "unidad": la unidad de esa cantidad: "kg", "g", "l" o "u". Los pesos de balanza como 1.042 kg significan 1,042 kilos (el punto separa los gramos).
+- "precio_unitario": el precio por kilo, por litro o por unidad (el que figura como $/KG, precio por kg, o el precio de góndola), en pesos.
+- "unidad_precio": "kg", "l" o "u".
+- "total": el precio total a pagar si figura en la etiqueta; si no figura, 0.
+Ignorá vencimiento, lote, código de barras, ingredientes y datos del comercio. Los importes argentinos usan punto para los miles y coma para los decimales.`;
+  const schema = {
+    type: 'OBJECT',
+    properties: { etiquetas: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      producto: { type: 'STRING' }, cantidad: { type: 'NUMBER' }, unidad: { type: 'STRING' },
+      precio_unitario: { type: 'NUMBER' }, unidad_precio: { type: 'STRING' }, total: { type: 'NUMBER' },
+    }, required: ['producto', 'cantidad', 'unidad', 'precio_unitario', 'unidad_precio', 'total'] } } },
+    required: ['etiquetas'],
+  };
+  const r = await llamarGeminiImagenes(prompt, schema, imagenes);
+  return (r.etiquetas || []).map(e => {
+    let unidad = ['kg', 'g', 'l', 'u'].includes(String(e.unidad).toLowerCase()) ? String(e.unidad).toLowerCase() : 'u';
+    let up = ['kg', 'l', 'u'].includes(String(e.unidad_precio).toLowerCase()) ? String(e.unidad_precio).toLowerCase() : (unidad === 'g' ? 'kg' : unidad);
+    let cantidad = Number(e.cantidad) || 1, precio = Number(e.precio_unitario) || 0; const total = Number(e.total) || 0;
+    // si la etiqueta no trae precio por kilo pero sí total y peso, se calcula
+    if (!(precio > 0) && total > 0) { const base = cantidad * (unidad === 'g' ? 0.001 : 1); precio = base > 0 ? Math.round(total / base * 100) / 100 : total; if (!up) up = unidad === 'g' ? 'kg' : unidad; }
+    return { producto: nombreTicket(e.producto || ''), cantidad, unidad, precio, up, totalEtiqueta: total, guardar: true };
+  }).filter(e => e.producto);
 }
 
 // ---------- Armado de los renglones ----------
@@ -176,8 +210,8 @@ function montarConciliacion() {
     </div>
     <div class="concil-cuerpo">
       <div id="cnPaso1">
-        <p class="hint">Sacale una foto al ticket entero, derecho y bien iluminado. La IA lee los renglones y vos confirmás antes de guardar. <b>La foto no se guarda.</b></p>
-        <p class="hint">¿Ticket largo en la pantalla del celular? Sacá varias capturas seguidas (que cada una repita un poco el final de la anterior) y elegilas todas juntas desde la galería.</p>
+        <p id="cnHint1" class="hint">Sacale una foto al ticket entero, derecho y bien iluminado. La IA lee los renglones y vos confirmás antes de guardar. <b>La foto no se guarda.</b></p>
+        <p id="cnHint2" class="hint">¿Ticket largo en la pantalla del celular? Sacá varias capturas seguidas (que cada una repita un poco el final de la anterior) y elegilas todas juntas desde la galería.</p>
         <label class="cn-boton cn-prim"><svg class="ic"><use href="#i-camera"/></svg> Sacar foto<input id="cnFoto" type="file" accept="image/*" capture="environment" hidden></label>
         <label class="cn-boton"><svg class="ic"><use href="#i-image"/></svg> Elegir de la galería (una o varias)<input id="cnGaleria" type="file" accept="image/*" multiple hidden></label>
         <button id="cnManual" class="ghost" style="width:100%;margin-top:10px">Cargar los montos a mano</button>
@@ -193,6 +227,10 @@ function montarConciliacion() {
           <button id="rcOtra" class="ghost" type="button">Otra foto</button>
         </div>
         <button id="rcUsar" class="primary" type="button" style="width:100%">Usar esta parte</button>
+      </div>
+      <div id="cnPasoEtq" hidden>
+        <p id="cnEtqInfo" class="hint" style="margin-top:0"></p>
+        <div id="cnEtqFilas"></div>
       </div>
       <div id="cnPaso2" hidden>
         <p id="cnInfo" class="hint" style="margin-top:0"></p>
@@ -215,7 +253,10 @@ function montarConciliacion() {
   $('rcUsar').addEventListener('click', usarRecorte);
   $('cnPasoRecorte').addEventListener('pointerdown', arrastrarRecorte);
   $('cnManual').addEventListener('click', () => { cn.lineas = lineasDesdeCarrito(); cn.total = ''; cn.origen = 'manual'; mostrarPaso2('Completá el monto real de cada producto, tal como figura en el ticket.'); });
-  $('cnGuardar').addEventListener('click', guardarConciliacion);
+  $('cnGuardar').addEventListener('click', () => (cn && cn.etiqueta ? guardarEtiquetas() : guardarConciliacion()));
+  $('cnEtqFilas').addEventListener('input', e => leerCampoEtq(e.target, false));
+  $('cnEtqFilas').addEventListener('change', e => leerCampoEtq(e.target, true));
+  $('cnEtqFilas').addEventListener('click', e => { const q = e.target.closest('[data-et-quitar]'); if (q && cn) { cn.etq.splice(+q.dataset.etQuitar, 1); if (!cn.etq.length) { volverAFoto(); return; } pintarEtq(); } });
   $('cnGuardar').textContent = 'Guardar';
   // los campos se leen al terminar de editar (así el teclado no pierde el foco); los totales se actualizan mientras se escribe
   $('cnFilas').addEventListener('change', e => leerCampo(e.target, true));
@@ -227,11 +268,11 @@ function abrirConciliacion(cid) {
   const items = gastos.filter(g => g.compraId === cid);
   if (!items.length) return;
   montarConciliacion();
-  $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false; $('pagoTicket').hidden = true;
+  restaurarTextosFoto(); $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false; $('pagoTicket').hidden = true;
   cn = { cid, items, lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
-  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
@@ -239,10 +280,10 @@ function abrirConciliacion(cid) {
 function abrirEscaneo() {
   montarConciliacion();
   cn = { cid: null, nuevo: true, items: [], lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: hoyISO(), lugar: '' };
-  $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; pintarPago($('pagoTicket'), 1);
+  restaurarTextosFoto(); $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; pintarPago($('pagoTicket'), 1);
   $('cnSub').textContent = 'Los productos y el total salen de la foto';
   $('cnManual').hidden = true;
-  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
@@ -267,13 +308,18 @@ async function enviarFoto(imgs) {
     estado.textContent = 'Leyendo el ticket… puede tardar unos segundos.';
     $('cnFoto').disabled = $('cnGaleria').disabled = true;
     try {
+      if (cn.etiqueta) {
+        const lista = await leerEtiquetas(imgs);
+        if (!lista.length) { estado.textContent = 'No pude leer ninguna etiqueta. Probá con otra foto: más cerca, derecha y sin reflejos.'; return; }
+        mostrarEtiquetas(lista); return;
+      }
       const t = await leerTicket(imgs, cn.items.map(g => g.producto));
       cn.lineas = lineasDesdeTicket(t); cn.total = Number(t.total) > 0 ? String(t.total) : ''; cn.origen = 'foto'; cn.comercio = t.comercio || '';
       if (cn.nuevo) datosDelTicket(t);
       if (!cn.lineas.length) { estado.textContent = 'No pude leer ningún producto. Probá con otra foto (más cerca, derecha y con buena luz) o encuadrá mejor el ticket.'; return; }
       mostrarPaso2(`Leí ${cn.lineas.length} renglón(es)${cn.comercio ? ' de ' + cn.comercio : ''}. Revisá que cada uno esté asociado al producto correcto y que los montos coincidan con el ticket.`);
     } catch (e) {
-      estado.textContent = 'No se pudo leer el ticket: ' + e.message + '. Podés probar de nuevo' + (cn.nuevo ? '.' : ' o cargar los montos a mano.');
+      estado.textContent = 'No se pudo leer ' + (cn.etiqueta ? 'la etiqueta' : 'el ticket') + ': ' + e.message + '. Podés probar de nuevo' + (cn.nuevo || cn.etiqueta ? '.' : ' o cargar los montos a mano.');
     } finally { $('cnFoto').disabled = $('cnGaleria').disabled = false; }
   };
   if (localStorage.getItem(TICKET_AVISO)) { await seguir(); return; }
@@ -418,3 +464,74 @@ $('lista').addEventListener('click', e => {
 
 // Botón "Escanear ticket" en Gasto directo
 document.addEventListener('click', e => { if (e.target.closest('#escanear')) abrirEscaneo(); });
+
+
+// ---------- Escanear etiqueta (Compra → cámara junto al micrófono) ----------
+let textosFoto = null;
+function restaurarTextosFoto() {
+  if (!textosFoto) textosFoto = [$('cnHint1').innerHTML, $('cnHint2').innerHTML];
+  $('cnHint1').innerHTML = textosFoto[0]; $('cnHint2').innerHTML = textosFoto[1]; $('cnHint2').hidden = false;
+  $('cnGuardar').textContent = 'Guardar'; $('cnPasoEtq').hidden = true;
+}
+function abrirEtiqueta() {
+  montarConciliacion(); restaurarTextosFoto();
+  cn = { etiqueta: true, items: [], lineas: [], quitar: {}, total: '', modoDif: 'nada', origen: '', fecha: hoyISO(), lugar: '', etq: [] };
+  $('cnTit').textContent = 'Escanear etiqueta'; $('cnSub').textContent = 'Producto con precio: balanza o góndola';
+  $('cnHint1').innerHTML = 'Sacale una foto a la <b>etiqueta de precio</b> (la de la balanza o la de la góndola). La IA lee el producto, el peso y el precio, y vos confirmás antes de agregarlo al carrito. <b>La foto no se guarda.</b>';
+  $('cnHint2').innerHTML = 'Podés elegir <b>varias fotos</b> desde la galería: se lee una etiqueta por foto.';
+  $('cnManual').hidden = true;
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('conciliar').hidden = false; document.body.style.overflow = 'hidden'; $('conciliar').scrollTop = 0;
+}
+function volverAFoto() { $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnPaso1').hidden = false; $('cnEstado').textContent = ''; }
+
+function mostrarEtiquetas(lista) {
+  cn.etq = lista;
+  $('cnPaso1').hidden = true; $('cnPasoEtq').hidden = false; $('cnPie').hidden = false; $('cnGuardar').textContent = 'Agregar al carrito';
+  $('cnEtqInfo').textContent = `Leí ${lista.length} etiqueta(s). Revisá el nombre, la cantidad y el precio; el total se calcula solo.`;
+  pintarEtq();
+}
+const nombreUp = { kg: 'kilo', l: 'litro', u: 'unidad' };
+function totalEtq(e) { return subtotal({ cantidad: Number(e.cantidad) || 0, unidad: e.unidad, precio: Number(e.precio) || 0, up: e.up }); }
+function textoTotalEtq(e) {
+  const t = totalEtq(e);
+  if (t === null) return '<span class="mal">revisá la unidad</span>';
+  const dif = e.totalEtiqueta > 0 && Math.abs(t - e.totalEtiqueta) / e.totalEtiqueta > 0.02;
+  return `<b>${peso(t)}</b>${dif ? `<small class="mal"> · la etiqueta dice ${peso(e.totalEtiqueta)}: revisá peso y precio</small>` : (e.totalEtiqueta > 0 ? '<small class="ok"> · coincide con la etiqueta</small>' : '')}`;
+}
+function pintarEtq() {
+  $('cnEtqFilas').innerHTML = cn.etq.map((e, i) => `<div class="cn-fila" data-i="${i}">
+    <input data-et="producto" type="text" value="${esc(e.producto)}" aria-label="Producto">
+    <div class="cn-campos">
+      <label>Cantidad<input data-et="cantidad" type="number" inputmode="decimal" step="any" value="${e.cantidad}"></label>
+      <label>Unidad<select data-et="unidad">${['kg', 'g', 'l', 'u'].map(u => `<option${u === e.unidad ? ' selected' : ''}>${u}</option>`).join('')}</select></label>
+    </div>
+    <div class="cn-campos">
+      <label>Precio ($)<input data-et="precio" type="number" inputmode="decimal" step="any" value="${e.precio}"></label>
+      <label>Por<select data-et="up">${['kg', 'l', 'u'].map(u => `<option value="${u}"${u === e.up ? ' selected' : ''}>${nombreUp[u]}</option>`).join('')}</select></label>
+    </div>
+    <div class="cn-suma"><span>Total</span><span data-et-total>${textoTotalEtq(e)}</span></div>
+    <label class="chk"><input data-et="guardar" type="checkbox" ${e.guardar ? 'checked' : ''}> Guardar el precio en mi lista de precios</label>
+    <button class="ghost" type="button" data-et-quitar="${i}" style="width:100%;margin-top:8px">Quitar esta etiqueta</button>
+  </div>`).join('');
+}
+function leerCampoEtq(el, confirmar) {
+  const k = el.dataset && el.dataset.et, fila = el.closest('[data-i]'); if (!k || !fila || !cn) return;
+  const e = cn.etq[+fila.dataset.i];
+  e[k] = el.type === 'checkbox' ? el.checked : el.value;
+  if (k !== 'producto' && k !== 'guardar') fila.querySelector('[data-et-total]').innerHTML = textoTotalEtq({ ...e, cantidad: e.cantidad, precio: e.precio });
+}
+function guardarEtiquetas() {
+  const malos = cn.etq.filter(e => !String(e.producto).trim() || !(Number(e.cantidad) > 0) || !(Number(e.precio) > 0) || totalEtq(e) === null);
+  if (malos.length) { toast('Revisá el producto, la cantidad, la unidad y el precio'); return; }
+  let precios_guardados = 0;
+  for (const e of cn.etq) {
+    const nombre = String(e.producto).trim();
+    carrito.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: nombre, cantidad: Number(e.cantidad), unidad: e.unidad, precio: Number(e.precio), up: e.up });
+    if (e.guardar) { setPrecio(nombre, Number(e.precio), e.up, ''); precios_guardados++; }
+  }
+  const n = cn.etq.length;
+  guardarCarrito(); renderCompra(); cerrarConciliacion();
+  toast(`${n} producto(s) al carrito${precios_guardados ? ' · ' + precios_guardados + ' precio(s) guardado(s)' : ''}`);
+}
+document.addEventListener('click', e => { if (e.target.closest('#cEtiqueta')) abrirEtiqueta(); });

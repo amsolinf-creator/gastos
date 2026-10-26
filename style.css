@@ -407,3 +407,7 @@ details.ayuda-tema { margin: 0; padding: 0; background: transparent; border: 0; 
 .ayuda-tema ol { margin: 0 0 12px; padding-left: 40px; color: var(--mute); font-size: 14px; line-height: 1.5; }
 .ayuda-tema li { margin-top: 6px; }
 details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); margin-bottom: 3px; }
+
+/* Cámara junto al micrófono del carrito */
+.mic.cam { background: rgba(255, 255, 255, .08); border: 1px solid var(--line); color: var(--text); box-shadow: none; }
+.cn-suma .ok { color: #34d399; font-size: 12.5px; } .cn-suma .mal { color: #fbbf24; font-size: 12.5px; }

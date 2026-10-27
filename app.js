@@ -491,6 +491,19 @@ function periodos(tipo) {
   return out;
 }
 
+// categorías desplegadas en Estadísticas (tocar una muestra sus gastos y permite cambiarlos de categoría)
+const catAbiertas = new Set();
+function alternarCat(c) { if (catAbiertas.has(c)) catAbiertas.delete(c); else catAbiertas.add(c); renderStats(); }
+$('categorias').addEventListener('click', e => { const f = e.target.closest('[data-cat]'); if (f) alternarCat(f.dataset.cat); });
+$('categorias').addEventListener('keydown', e => { const f = e.target.closest('[data-cat]'); if (f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); alternarCat(f.dataset.cat); } });
+$('categorias').addEventListener('change', async e => {
+  const id = e.target.dataset.gidCat; if (!id) return;
+  const g = gastos.find(x => x.id === id); if (!g) return;
+  let valor = e.target.value;
+  if (valor === '__nueva__') valor = (await pedirCategoria()) || g.categoria;
+  g.categoria = valor; aprenderCategoria(g.producto, valor);
+  persistir(); renderStats(); renderHistorial(); toast('Movido a ' + valor);
+});
 function renderStats() {
   const ps = { dia: periodos('dia'), semana: periodos('semana'), mes: periodos('mes'), anio: periodos('anio') };
   const act = k => ps[k][ps[k].length - 1];
@@ -517,10 +530,11 @@ function renderStats() {
   // los porcentajes se calculan sobre lo gastado (sin descuentos) para que sumen 100%; los descuentos se muestran aparte
   const totalP = filas.reduce((s, [, v]) => s + Math.max(0, v), 0) || 1, netoP = filas.reduce((s, [, v]) => s + v, 0);
   const hayDesc = filas.some(([, v]) => v < 0);
+  const delPeriodo = gastos.filter(g => { const f = parseFecha(g.fecha); return f >= p.desde && f < p.hasta; });
+  const detalleCat = c => `<div class="cat-lista">${delPeriodo.filter(g => g.categoria === c).sort((a, b) => b.monto - a.monto).map(g => `<div class="cat-g"><div><b>${esc(g.producto)}</b><small>${esc(g.lugar || 'Sin lugar')} · ${fmtFecha(g.fecha)}</small></div><span>${peso(g.monto)}</span><select class="mini" data-gid-cat="${g.id}" aria-label="Cambiar categoría">${opcionesCategoria(g.categoria)}</select></div>`).join('')}</div>`;
+  const filaCat = (c, v, resto) => `<div class="cat cat-tap${catAbiertas.has(c) ? ' abierta' : ''}" style="--c:${colorCat(c)}" data-cat="${esc(c)}" role="button" tabindex="0" aria-expanded="${catAbiertas.has(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${resto}</span></div>${v >= 0 ? `<div class="pista"><i style="width:${v / totalP * 100}%"></i></div>` : ''}</div>${catAbiertas.has(c) ? detalleCat(c) : ''}`;
   $('categorias').innerHTML = filas.length
-    ? filas.map(([c, v]) => v < 0
-        ? `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)}</span></div></div>`
-        : `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
+    ? filas.map(([c, v]) => filaCat(c, v, v < 0 ? peso(v) : `${peso(v)} · ${Math.round(v / totalP * 100)}%`)).join('')
       + (hayDesc ? `<div class="cat"><div class="top"><b>Total después de descuentos</b><b>${peso(netoP)}</b></div></div>` : '')
     : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 

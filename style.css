@@ -421,3 +421,12 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .nota-in { width: 100%; margin-top: 8px; min-height: 38px; padding: 6px 12px; font-size: 14px; border-radius: 12px; }
 .cg-nota { display: block; color: #fbbf24 !important; margin-top: 2px; }
 .plan-nota { color: #fbbf24 !important; }
+
+/* Estadísticas: categoría desplegable */
+.cat-tap { cursor: pointer; }
+.cat-tap.abierta .top > span:first-child { font-weight: 700; }
+.cat-lista { margin: -2px 0 12px; padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+.cat-g { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.cat-g:last-child { border-bottom: 0; }
+.cat-g small { display: block; opacity: .65; font-size: 12px; }
+.cat-g .mini { grid-column: 1 / -1; width: 100%; }

@@ -37,7 +37,7 @@ function aplicarCopia(d) {
     precios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')); guardarPrecios();
     for (const l of d.lugares || []) if (typeof l === 'string' && l && !lugares.some(x => x.toLowerCase() === l.toLowerCase())) lugares.push(l);
     localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
-    for (const t of d.tarjetas || []) if (t && t.nombre && !tarjetas.some(x => x.nombre.toLowerCase() === String(t.nombre).toLowerCase())) tarjetas.push({ nombre: String(t.nombre), desde: t.desde === 1 ? 1 : 0 });
+    for (const t of d.tarjetas || []) if (t && t.nombre && !tarjetas.some(x => x.nombre.toLowerCase() === String(t.nombre).toLowerCase())) tarjetas.push({ nombre: String(t.nombre), desde: t.desde === 1 ? 1 : 0, ...(t.cierre >= 1 && t.cierre <= 31 ? { cierre: Math.round(t.cierre) } : {}) });
     guardarTarjetas(); pintarTodosLosPagos(); renderCuotas();
     lugarCat = { ...(d.lugarCategorias || {}), ...lugarCat }; localStorage.setItem(LS_LUGCAT, JSON.stringify(lugarCat));
     catsAprendidas = { ...(d.categoriasAprendidas || {}), ...catsAprendidas };

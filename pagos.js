@@ -88,6 +88,8 @@ function planesCuotas() {
 }
 const cuotaDelMes = (p, k) => (k >= p.ini && k <= p.fin ? p.valor : 0);
 
+// fecha de este mes con el día de cierre, para mostrarla en el selector de fechas
+const fechaCierre = d => { if (!d) return ''; const h = new Date(), ult = new Date(h.getFullYear(), h.getMonth() + 1, 0).getDate(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(Math.min(d, ult)).padStart(2, '0')}`; };
 // ---------- Mis tarjetas (Ajustes): ver, agregar, renombrar y quitar ----------
 const usosTarjeta = nom => new Set(gastos.filter(g => g.pago && g.pago.tarjeta === nom).map(g => g.compraId || g.id)).size;
 function renderMisTarjetas() {
@@ -99,7 +101,7 @@ function renderMisTarjetas() {
       <label class="mt-conf">Primera cuota de cada compra
         <select data-mt-desde="${i}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>
       <label class="mt-conf">Día de cierre del resumen <span class="nota">· opcional</span>
-        <input type="number" inputmode="numeric" min="1" max="31" data-mt-cierre="${i}" value="${t.cierre || ''}" placeholder="Ej: 24"></label>
+        <input type="date" data-mt-cierre="${i}" value="${fechaCierre(t.cierre)}"></label>
       ${t.cierre ? '<small class="hint">Las compras hechas después del día ' + t.cierre + ' pasan a la cuota del mes siguiente.</small>' : ''}</div>`;
   }).join('') : '<p class="hint" style="margin:0 0 4px">Todavía no cargaste ninguna tarjeta. Agregá las que usás y después las elegís con un toque al registrar un gasto.</p>')
     + `<div class="mt-nueva"><input id="mtNombre" type="text" placeholder="Nombre (ej: Cordobesa, Visa Galicia)" maxlength="40"><button id="mtAgregar" class="primary">Agregar</button></div>`;
@@ -143,8 +145,8 @@ $('misTarjetas').addEventListener('change', e => {
   const i = e.target.dataset.mtDesde; if (i === undefined || !tarjetas[+i]) return;
   tarjetas[+i].desde = Number(e.target.value) === 1 ? 1 : 0; guardarTarjetas(); renderCuotas();
 });
-// día de cierre del resumen: 1 a 31, vacío = sin cierre
-const diaCierre = v => { const n = Math.round(Number(v)); return n >= 1 && n <= 31 ? n : 0; };
+// el selector es de fecha pero solo se guarda el día del mes (vacío = sin cierre)
+const diaCierre = v => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? Number(v.slice(8, 10)) : 0);
 $('misTarjetas').addEventListener('change', e => {
   const i = e.target.dataset.mtCierre; if (i === undefined || !tarjetas[+i]) return;
   const d = diaCierre(e.target.value); if (d) tarjetas[+i].cierre = d; else delete tarjetas[+i].cierre;
@@ -205,7 +207,7 @@ function renderCuotasInterno() {
       ${t ? `<label class="tj-conf">Primera cuota de cada compra
         <select data-tj-desde="${esc(nom)}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>
         <label class="tj-conf">Día de cierre del resumen <span class="nota">· opcional</span>
-        <input type="number" inputmode="numeric" min="1" max="31" data-tj-cierre="${esc(nom)}" value="${t.cierre || ''}" placeholder="Ej: 24"></label>` : ''}
+        <input type="date" data-tj-cierre="${esc(nom)}" value="${fechaCierre(t.cierre)}"></label>` : ''}
       ${activos.length ? activos.map(fila).join('') : '<p class="hint" style="margin:10px 0 0">No hay compras en cuotas pendientes.</p>'}
       ${cerrados.length ? `<details class="tj-ter"><summary>Terminadas (${cerrados.length})</summary>${cerrados.map(fila).join('')}</details>` : ''}
     </div>`;

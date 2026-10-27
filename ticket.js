@@ -238,6 +238,7 @@ function montarConciliacion() {
         <div id="cnTotales" class="cn-totales"></div>
         <label id="cnFechaL" hidden>Fecha de la compra<input id="cnFecha" type="date"></label>
         <div id="pagoTicket" class="pago" hidden></div>
+        <div id="notaTicketL" hidden><label class="nota-campo">Observaciones <span class="nota">· opcional</span><input id="notaTicket" type="text" maxlength="140" autocomplete="off" placeholder="Ej: Reintegro del 20% en el próximo resumen"></label></div>
       </div>
     </div>
     <div id="cnPie" class="concil-pie" hidden>
@@ -268,7 +269,7 @@ function abrirConciliacion(cid) {
   const items = gastos.filter(g => g.compraId === cid);
   if (!items.length) return;
   montarConciliacion();
-  restaurarTextosFoto(); $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false; $('pagoTicket').hidden = true;
+  restaurarTextosFoto(); $('cnTit').textContent = 'Conciliar con el ticket'; $('cnManual').hidden = false; $('pagoTicket').hidden = true; $('notaTicketL').hidden = true;
   cn = { cid, items, lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
@@ -280,7 +281,7 @@ function abrirConciliacion(cid) {
 function abrirEscaneo() {
   montarConciliacion();
   cn = { cid: null, nuevo: true, items: [], lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: hoyISO(), lugar: '' };
-  restaurarTextosFoto(); $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; pintarPago($('pagoTicket'), 1);
+  restaurarTextosFoto(); $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; $('notaTicketL').hidden = false; $('notaTicket').value = ''; pintarPago($('pagoTicket'), 1);
   $('cnSub').textContent = 'Los productos y el total salen de la foto';
   $('cnManual').hidden = true;
   $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
@@ -404,6 +405,9 @@ function guardarConciliacion() {
   if (cn.nuevo && $('cnFecha').value) cn.fecha = $('cnFecha').value;
   const pago = cn.nuevo ? leerPago($('pagoTicket')) : {};
   if (pago === null) return;
+  // la observación de la compra: la que escribís al escanear, o la que ya tenía al volver a conciliar
+  const nota = cn.nuevo ? ($('notaTicket').value || '').trim() : ((cn.items.find(g => g.nota) || {}).nota || '');
+  const conNota = () => (nota ? { nota } : {});
   const usados = new Set(cn.lineas.filter(l => l.destino !== 'nuevo' && l.destino !== 'ignorar').map(l => l.destino));
   const acum = new Map(), nuevos = [];
   for (const l of cn.lineas) {
@@ -430,7 +434,7 @@ function guardarConciliacion() {
   }
   const nuevosGastos = nuevos.map(n => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: n.producto, monto: redondear2(n.monto), estimado: 0, dolar: Number(ajustes.dolar) || null,
-    categoria: categoriaDe(n.producto, null, false), fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago), ...(n.cant ? { cantidadReal: n.cant } : {}),
+    categoria: categoriaDe(n.producto, null, false), fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago), ...conNota(), ...(n.cant ? { cantidadReal: n.cant } : {}),
   }));
   // diferencia con el total del ticket: descuento/recargo como renglón aparte, o repartida en proporción
   const conTicket = [...resultado.filter(g => g.conTicket), ...nuevosGastos];
@@ -439,7 +443,7 @@ function guardarConciliacion() {
     const d = redondear2(total - sumaFinal);
     nuevosGastos.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), producto: d < 0 ? 'Descuento' : 'Recargo', monto: d, estimado: 0, dolar: Number(ajustes.dolar) || null,
-      categoria: d < 0 ? 'Descuentos' : 'Otros', fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago),
+      categoria: d < 0 ? 'Descuentos' : 'Otros', fecha: cn.fecha, lugar: cn.lugar, compraId: cn.cid, conTicket: true, ...conPago(pago), ...conNota(),
     });
   }
   if (cn.modoDif === 'repartir' && total > 0 && conTicket.length && Math.abs(total - sumaFinal) >= 1) {

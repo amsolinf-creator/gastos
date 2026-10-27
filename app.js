@@ -420,7 +420,7 @@ $('agregarFila').addEventListener('click', () => {
 $('descartar').addEventListener('click', limpiarRegistro);
 
 function limpiarRegistro() {
-  pendientes = []; $('lugarGasto').value = ''; $('texto').value = ''; renderPendientes();
+  pendientes = []; $('lugarGasto').value = ''; $('notaGasto').value = ''; $('texto').value = ''; renderPendientes();
   $('micEstado').textContent = 'Tocá el micrófono y decí, por ejemplo: “leche mil doscientos cincuenta, dos lucas de verdura”.';
 }
 
@@ -428,6 +428,7 @@ $('guardar').addEventListener('click', () => {
   const validos = pendientes.filter(p => p.producto.trim() && p.monto > 0 && p.fecha);
   if (!validos.length) { toast('Completá producto y monto'); return; }
   const pago = leerPago($('pagoGasto')); if (pago === null) return;
+  const notaGasto = $('notaGasto').value.trim();
   const dolar = Number(ajustes.dolar) || null;
   const lugarTipeado = validos.some(sinLugar) ? lugarElegido() : '';
   validos.forEach(p => {
@@ -441,7 +442,7 @@ $('guardar').addEventListener('click', () => {
     }
     gastos.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      producto: p.producto.trim(), monto: p.monto, categoria, fecha: p.fecha, lugar, dolar, ...conPago(pago),
+      producto: p.producto.trim(), monto: p.monto, categoria, fecha: p.fecha, lugar, dolar, ...conPago(pago), ...(notaGasto ? { nota: notaGasto } : {}),
     });
   });
   localStorage.setItem(LS_LUGCAT, JSON.stringify(lugarCat));
@@ -552,10 +553,11 @@ const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub'
     <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
     ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
     <button class="mini-pago${g.pago ? ' on' : ''}" data-pago-gasto="${g.id}">${esc(pagoTxt(g.pago) || 'Medio de pago')}</button>`}
-  </div>${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}${enCompra && g.estimado && Math.abs(g.estimado - g.monto) > 1 ? `<small>precio estimado ${peso(g.estimado)}</small>` : ''}</div>
+  </div>${enCompra ? '' : `<input class="nota-in" data-nota-gasto="${g.id}" value="${esc(g.nota || '')}" maxlength="140" placeholder="Observaciones" aria-label="Observaciones">`}${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}${enCompra && g.estimado && Math.abs(g.estimado - g.monto) > 1 ? `<small>precio estimado ${peso(g.estimado)}</small>` : ''}</div>
   <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`;
 
 // Una compra = una sola tarjeta con el lugar y el total; el detalle se despliega
+const notaDe = items => (items.find(g => g.nota) || {}).nota || '';
 function tarjetaCompra(items) {
   const id = items[0].compraId, lugar = items[0].lugar || '';
   const total = items.reduce((t, g) => t + g.monto, 0);
@@ -563,7 +565,7 @@ function tarjetaCompra(items) {
   const conciliada = items.every(g => g.conTicket);
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t">${modoSel ? chkSel('c:' + id, selC.has(id)) : ''}<i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small></span></span>
+      <span class="cg-t">${modoSel ? chkSel('c:' + id, selC.has(id)) : ''}<i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small>${notaDe(items) ? `<small class="cg-nota">📝 ${esc(notaDe(items))}</small>` : ''}</span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
@@ -571,6 +573,7 @@ function tarjetaCompra(items) {
         <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
         <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
       </div>
+      <label class="cg-fecha">Observaciones<input type="text" data-cid-nota="${id}" value="${esc(notaDe(items))}" maxlength="140" placeholder="Ej: Reintegro del 20% en el próximo resumen"></label>
       <label class="cg-fecha">Fecha de la compra<input type="date" data-cid-fecha="${id}" value="${items[0].fecha}" max="${hoyISO()}"></label>
       <button class="cg-pago" data-pago-compra="${id}"><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(pagoTxt(items[0].pago) || 'Elegir el medio de pago')}</button>
       <button class="cg-conc" data-conciliar="${id}"><svg class="ic ic-s"><use href="#i-camera"/></svg> ${conciliada ? 'Volver a conciliar con el ticket' : 'Conciliar con el ticket'}</button>
@@ -650,6 +653,15 @@ $('lista').addEventListener('change', e => {
   const cid = e.target.dataset.cidLugar; if (!cid) return;
   gastos.filter(g => g.compraId === cid).forEach(g => { g.lugar = e.target.value; });
   persistir(); renderHistorial(); toast('Lugar de la compra actualizado');
+});
+// observaciones de una compra o de un gasto suelto
+$('lista').addEventListener('change', e => {
+  const cid = e.target.dataset.cidNota, gid = e.target.dataset.notaGasto;
+  if (cid === undefined && gid === undefined) return;
+  const v = e.target.value.trim().slice(0, 140), poner = g => { if (v) g.nota = v; else delete g.nota; };
+  if (cid !== undefined) gastos.filter(g => g.compraId === cid).forEach(poner);
+  else { const g = gastos.find(x => x.id === gid); if (g) poner(g); }
+  persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas(); toast('Observación guardada');
 });
 // cambiar la fecha de toda la compra
 $('lista').addEventListener('change', e => {
@@ -1096,6 +1108,7 @@ $('cGuardar').addEventListener('click', () => {
   let total = Number($('cCaja').value) || 0;
   if (!validos.length && !total) { toast('Cargá el total que marca la caja'); $('cCaja').focus(); return; }
   const pago = leerPago($('pagoCompra')); if (pago === null) return;
+  const notaCompra = $('notaCompra').value.trim();
   if (!total) {
     if (!confirm(`No cargaste el total que marca la caja.\n¿Guardar con el total estimado (${peso(estimado)})?`)) { $('cCaja').focus(); return; }
     total = estimado;
@@ -1124,9 +1137,9 @@ $('cGuardar').addEventListener('click', () => {
   const compraId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   registros.filter(r => r.monto > 0).forEach(r => gastos.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, compraId, dolar, ...conPago(pago),
+    producto: r.producto, monto: r.monto, estimado: r.estimado, categoria: categoriaDe(r.producto), fecha, lugar: lugarActual, compraId, dolar, ...conPago(pago), ...(notaCompra ? { nota: notaCompra } : {}),
   }));
-  persistir(); reiniciarCuotas($('pagoCompra'));
+  persistir(); reiniciarCuotas($('pagoCompra')); $('notaCompra').value = '';
   carrito = []; guardarCarrito(); $('cCaja').value = ''; renderCompra();
   cambiarLugar('');   // la próxima compra arranca con el lugar "Sin especificar"
   toast(`Compra guardada: ${peso(total)}`);
@@ -1322,23 +1335,23 @@ function armarHojas(lista, r) {
     ],
   };
 
-  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado', 'Origen del monto', 'Medio de pago', 'Tarjeta', 'Cuotas'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
+  const encG = ['Fecha', 'Tipo', 'Lugar', 'Producto', 'Categoría', 'Monto', 'Precio estimado', 'Origen del monto', 'Medio de pago', 'Tarjeta', 'Cuotas', 'Observaciones'].concat(hayUsd ? ['USD'] : []).map(t => xTxt(t, EST.encabezado));
   const filasG = lista.map(g => [xFecha(g.fecha), g.compraId ? 'Compra' : 'Gasto directo', g.lugar || '', g.producto, g.categoria, xNum(g.monto, EST.dinero), g.estimado ? xNum(g.estimado, EST.dinero) : '', g.conTicket ? 'Ticket' : (g.compraId ? 'Estimado (total de la caja)' : 'Gasto directo'),
-      g.pago ? g.pago.medio : '', g.pago && g.pago.tarjeta ? g.pago.tarjeta : '', g.pago && g.pago.medio === CREDITO ? xNum(g.pago.cuotas || 1) : '']
+      g.pago ? g.pago.medio : '', g.pago && g.pago.tarjeta ? g.pago.tarjeta : '', g.pago && g.pago.medio === CREDITO ? xNum(g.pago.cuotas || 1) : '', g.nota || '']
     .concat(hayUsd ? [g.dolar ? xNum(redondeo(g.monto / g.dolar), 0) : ''] : []));
   const gastosHoja = {
-    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 24, 18, 16, 8, 10], filtro: true, filtroHasta: lista.length + 1,
+    nombre: 'Gastos', anchos: [12, 15, 18, 30, 16, 14, 16, 24, 18, 16, 8, 34, 10], filtro: true, filtroHasta: lista.length + 1,
     filas: [encG, ...filasG, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${lista.length + 1})`, redondeo(total), EST.totalDinero)]],
   };
 
   const filasC = bloques.map(b => {
     const t = b.items.reduce((x, g) => x + g.monto, 0);
     const detalle = b.items.map(g => g.producto).join(', ');
-    return [xFecha(b.fecha), b.tipo, b.lugar, detalle, xNum(b.items.length), xNum(redondeo(t), EST.dinero)];
+    return [xFecha(b.fecha), b.tipo, b.lugar, detalle, xNum(b.items.length), xNum(redondeo(t), EST.dinero), notaDe(b.items)];
   });
   const comprasHoja = {
-    nombre: 'Compras', anchos: [12, 15, 18, 55, 11, 14], filtro: true, filtroHasta: bloques.length + 1,
-    filas: [['Fecha', 'Tipo', 'Lugar', 'Detalle', 'Productos', 'Total'].map(t => xTxt(t, EST.encabezado)), ...filasC, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${bloques.length + 1})`, redondeo(total), EST.totalDinero)]],
+    nombre: 'Compras', anchos: [12, 15, 18, 55, 11, 14, 34], filtro: true, filtroHasta: bloques.length + 1,
+    filas: [['Fecha', 'Tipo', 'Lugar', 'Detalle', 'Productos', 'Total', 'Observaciones'].map(t => xTxt(t, EST.encabezado)), ...filasC, [], ['', '', '', '', xTxt('TOTAL', EST.totalTxt), xForm(`SUM(F2:F${bloques.length + 1})`, redondeo(total), EST.totalDinero)]],
   };
 
   const hojaAgrupada = (nombre, titulo, grupos) => {

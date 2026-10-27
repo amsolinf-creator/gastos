@@ -71,7 +71,7 @@ function planesCuotas() {
     const k = g.compraId || g.id;
     let p = m.get(k);
     if (!p) { p = { key: k, tarjeta: g.pago.tarjeta, cuotas: Math.max(1, g.pago.cuotas || 1), fecha: g.fecha, lugar: g.lugar || '', total: 0, nombres: [] }; m.set(k, p); }
-    p.total += Number(g.monto) || 0; p.nombres.push(g.producto);
+    p.total += Number(g.monto) || 0; p.nombres.push(g.producto); if (g.nota && !p.nota) p.nota = g.nota;
   }
   return [...m.values()].map(p => {
     const t = tarjetas.find(x => x.nombre === p.tarjeta);
@@ -187,6 +187,7 @@ function renderCuotasInterno() {
       return `<div class="plan"><div class="plan-t"><b>${esc(p.desc || 'Compra')}</b><small>${fmtFecha(p.fecha)} · ${peso(p.total)} en ${p.cuotas} ${p.cuotas === 1 ? 'pago' : 'cuotas'} de ${peso(p.valor)}</small></div>
         <div class="plan-m"><b>${estado}</b>${p.faltan > 0 ? `<small>faltan ${peso(p.saldo)}</small>` : ''}</div>
         <div class="pista"><i style="width:${pct}%"></i></div>
+        ${p.nota ? `<small class="plan-f plan-nota">📝 ${esc(p.nota)}</small>` : ''}
         <small class="plan-f">${p.faltan > 0 ? `Última cuota: ${etqMes(p.fin)}` : `Terminó en ${etqMes(p.fin)}`}</small></div>`;
     };
     h += `<div class="tj" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>

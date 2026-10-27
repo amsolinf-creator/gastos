@@ -18,7 +18,7 @@ let restaurandoCopia = false;
 function construirCopia() {
   // Las claves de IA no se guardan en la copia: son personales y se vuelven a pegar en Ajustes.
   const { apiKey, groqKey, modelo, groqModelo, ...seguros } = ajustes;
-  return { app: 'gastos-por-voz', version: 2, creado: new Date().toISOString(), gastos, precios, lugares, tarjetas, lugarCategorias: lugarCat, categoriasAprendidas: catsAprendidas, ajustes: seguros };
+  return { app: 'gastos-por-voz', version: 2, creado: new Date().toISOString(), gastos, precios, lugares, tarjetas, resumenes, lugarCategorias: lugarCat, categoriasAprendidas: catsAprendidas, ajustes: seguros };
 }
 
 // Combina una copia con lo que hay en este celular, sin duplicar ni pisar lo existente
@@ -38,6 +38,8 @@ function aplicarCopia(d) {
     for (const l of d.lugares || []) if (typeof l === 'string' && l && !lugares.some(x => x.toLowerCase() === l.toLowerCase())) lugares.push(l);
     localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
     for (const t of d.tarjetas || []) if (t && t.nombre && !tarjetas.some(x => x.nombre.toLowerCase() === String(t.nombre).toLowerCase())) tarjetas.push({ nombre: String(t.nombre), desde: t.desde === 1 ? 1 : 0, ...(t.cierre >= 1 && t.cierre <= 31 ? { cierre: Math.round(t.cierre) } : {}) });
+    for (const [k, v] of Object.entries(d.resumenes || {})) if (v && v.vence && !resumenes[k]) resumenes[k] = v;
+    guardarResumenes();
     guardarTarjetas(); pintarTodosLosPagos(); renderCuotas();
     lugarCat = { ...(d.lugarCategorias || {}), ...lugarCat }; localStorage.setItem(LS_LUGCAT, JSON.stringify(lugarCat));
     catsAprendidas = { ...(d.categoriasAprendidas || {}), ...catsAprendidas };

@@ -430,3 +430,17 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .cat-g:last-child { border-bottom: 0; }
 .cat-g small { display: block; opacity: .65; font-size: 12px; }
 .cat-g .mini { grid-column: 1 / -1; width: 100%; }
+
+/* Resumen de tarjeta */
+.rs { margin-top: 12px; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.rs-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .rs-cab small { color: var(--mute); font-size: 12px; }
+.rs-vto { margin: 8px 0 0; font-weight: 700; color: #fbbf24; } .rs-vto.vencido { color: #f87171; }
+.rs .tj-res { margin: 8px 0 4px; }
+.rs-f { display: block; margin-top: 6px; color: var(--mute); font-size: 12px; }
+.rs-tabla { margin-top: 10px; }
+.rs-fila { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 2px 8px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.07); font-size: 13px; }
+.rs-fila > :last-child { grid-column: 1 / -1; font-size: 12px; }
+.rs-th { border-top: 0; color: var(--mute); font-size: 12px; } .rs-th > :last-child { display: none; }
+.rs-ok { color: #4ade80; } .rs-dif { color: #fbbf24; }
+.rs-acc { display: flex; gap: 8px; margin-top: 10px; } .rs-acc button { flex: 1; }
+.rs > button.ghost { width: 100%; }

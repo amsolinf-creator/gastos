@@ -514,9 +514,14 @@ function renderStats() {
   gastos.filter(g => { const f = parseFecha(g.fecha); return f >= p.desde && f < p.hasta; })
     .forEach(g => (porCat[g.categoria] = (porCat[g.categoria] || 0) + g.monto));
   const filas = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
-  const totalP = filas.reduce((s, [, v]) => s + v, 0) || 1;
+  // los porcentajes se calculan sobre lo gastado (sin descuentos) para que sumen 100%; los descuentos se muestran aparte
+  const totalP = filas.reduce((s, [, v]) => s + Math.max(0, v), 0) || 1, netoP = filas.reduce((s, [, v]) => s + v, 0);
+  const hayDesc = filas.some(([, v]) => v < 0);
   $('categorias').innerHTML = filas.length
-    ? filas.map(([c, v]) => `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${Math.max(0, v / totalP * 100)}%"></i></div></div>`).join('')
+    ? filas.map(([c, v]) => v < 0
+        ? `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)}</span></div></div>`
+        : `<div class="cat" style="--c:${colorCat(c)}"><div class="top"><span><i class="dot"></i>${esc(c)}</span><span>${peso(v)} · ${Math.round(v / totalP * 100)}%</span></div><div class="pista"><i style="width:${v / totalP * 100}%"></i></div></div>`).join('')
+      + (hayDesc ? `<div class="cat"><div class="top"><b>Total después de descuentos</b><b>${peso(netoP)}</b></div></div>` : '')
     : '<p class="hint" style="margin:0">Sin gastos en este período.</p>';
 
   $('lugTitulo').textContent = 'Por lugar — ' + nombres[vista];

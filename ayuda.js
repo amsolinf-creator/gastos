@@ -31,7 +31,8 @@ const AYUDA = [
   { t: 'Tarjeta de crédito y cuotas', p: [
     'Al registrar un gasto elegí «Medio de pago» → «Tarjeta de crédito», la tarjeta (➕ Agregar tarjeta… la primera vez) y la cantidad de cuotas.',
     'En la pestaña Cuotas ves cuánto pagás este mes, el saldo y los próximos meses de cada tarjeta.',
-    'Si tu tarjeta cobra la primera cuota el mes siguiente, cambialo en Ajustes → Mis tarjetas.' ] },
+    'Si tu tarjeta cobra la primera cuota el mes siguiente, cambialo en Ajustes → Mis tarjetas.',
+    'Cargá también el día de cierre del resumen (por ejemplo el 24): las compras hechas después de esa fecha pasan a la cuota del mes siguiente.' ] },
   { t: 'Historial: corregir y borrar', p: [
     'Tocá una compra para ver el detalle y corregir la categoría, el lugar o la fecha.',
     'Cada compra y cada gasto tiene un campo «Observaciones» para anotar lo que quieras, por ejemplo «Reintegro del 20% en el próximo resumen». La nota se ve en el Historial, en Cuotas y en el Excel.',

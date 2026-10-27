@@ -3,9 +3,12 @@
 // en cuotas iguales y la sección "Cuotas" lleva la cuenta de cada tarjeta mes a mes.
 const LS_TARJETAS = 'gastos.tarjetas.v1';
 const LS_PAGO = 'gastos.pago.v1';
+const LS_RESUMENES = 'gastos.resumenes.v1';
 let tarjetas = cargar(LS_TARJETAS, []);   // [{ nombre, desde, cierre }]  desde: 0 = la 1ª cuota cae el mes de la compra, 1 = el mes siguiente; cierre: día del mes en que cierra el resumen (las compras posteriores se corren un mes)
 let pagoUlt = { medio: '', tarjeta: '', ...cargar(LS_PAGO, {}) };   // lo último que elegiste: se sugiere en la próxima compra
 const guardarTarjetas = () => { localStorage.setItem(LS_TARJETAS, JSON.stringify(tarjetas)); if (typeof alGuardarDatos === 'function') alGuardarDatos(); if (typeof renderMisTarjetas === 'function') renderMisTarjetas(); };
+let resumenes = cargar(LS_RESUMENES, {});   // { tarjeta: { cierre, vence, cierreAnt, proxCierre, proxVence, saldo, minimo, cuotasVencer, ... } } último resumen leído de cada tarjeta
+const guardarResumenes = () => { try { localStorage.setItem(LS_RESUMENES, JSON.stringify(resumenes)); } catch {} if (typeof alGuardarDatos === 'function') alGuardarDatos(); };
 const guardarPagoUlt = () => { try { localStorage.setItem(LS_PAGO, JSON.stringify(pagoUlt)); } catch {} };
 
 async function agregarTarjeta(texto) {
@@ -75,7 +78,10 @@ function planesCuotas() {
   }
   return [...m.values()].map(p => {
     const t = tarjetas.find(x => x.nombre === p.tarjeta);
-    p.ini = mesDeFecha(p.fecha) + (t ? t.desde : 0) + (t && t.cierre && Number(p.fecha.slice(8, 10)) > t.cierre ? 1 : 0);
+    // con el resumen del banco las fechas son exactas: la compra entra en el resumen que cierra después de la fecha de compra
+    const rs = resumenes[p.tarjeta];
+    if (rs && rs.cierre && rs.cierreAnt && rs.proxCierre && rs.proxVence && p.fecha > rs.cierreAnt && p.fecha <= rs.proxCierre) p.ini = mesDeFecha(p.fecha <= rs.cierre ? rs.vence : rs.proxVence);
+    else p.ini = mesDeFecha(p.fecha) + (t ? t.desde : 0) + (t && t.cierre && Number(p.fecha.slice(8, 10)) > t.cierre ? 1 : 0);
     p.valor = p.total / p.cuotas;
     p.n = cur - p.ini + 1;                                   // número de la cuota de este mes (≤0: todavía no empieza; >cuotas: terminó)
     p.pagadas = Math.max(0, Math.min(p.cuotas, cur - p.ini));   // cuotas de meses anteriores
@@ -204,6 +210,7 @@ function renderCuotasInterno() {
     };
     h += `<div class="tj" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
       <div class="tj-res"><div><small>Este mes</small><b>${peso(mes)}</b></div><div><small>Mes próximo</small><b>${peso(prox)}</b></div><div><small>Saldo</small><b>${peso(sal)}</b></div></div>
+      ${t && typeof bloqueResumen === 'function' ? bloqueResumen(nom) : ''}
       ${t ? `<label class="tj-conf">Primera cuota de cada compra
         <select data-tj-desde="${esc(nom)}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>
         <label class="tj-conf">Día de cierre del resumen <span class="nota">· opcional</span>

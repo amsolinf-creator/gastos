@@ -15,6 +15,44 @@ function textoVence(iso) {
   return `Vence el ${fechaCorta(iso)} (en ${d} día${d === 1 ? '' : 's'})`;
 }
 
+// cuotas en curso del resumen que todavía no están en la app (misma tarjeta, mismas cuotas y mismo valor de cuota)
+function cuotasPendientesDeCargar(nom, rs) {
+  const planes = planesCuotas().filter(p => p.tarjeta === nom);
+  return (rs.cuotasEnCurso || []).map(c => ({ ...c, ya: planes.some(p => p.cuotas === c.total && Math.abs(p.valor - c.monto) < 1) }));
+}
+function botonCargarCuotas(nom, rs) {
+  const lista = cuotasPendientesDeCargar(nom, rs); if (!lista.length) return '';
+  const faltan = lista.filter(c => !c.ya).length;
+  return faltan ? `<button class="primary rs-cargar" data-rs-cargar="${esc(nom)}">Cargar las cuotas del resumen (${faltan})</button>` : '<small class="rs-f rs-ok">✓ Las compras en cuotas del resumen ya están cargadas</small>';
+}
+function cargarCuotasDelResumen(nom) {
+  const rs = resumenes[nom]; if (!rs) return;
+  const lista = cuotasPendientesDeCargar(nom, rs);
+  const fila = (c, i) => `<label class="rs-opc"><input type="checkbox" class="rs-chk" data-i="${i}"${c.ya ? ' disabled' : ' checked'}><span><b>${esc(c.concepto)}</b><small>cuota ${c.n} de ${c.total} · ${peso(c.monto)} c/u · total ${peso(c.monto * c.total)}${c.fecha ? ' · ' + fmtFecha(c.fecha) : ''}${c.ya ? ' · ya cargada' : ''}</small></span></label>`;
+  mostrarModal({
+    titulo: 'Cuotas del resumen',
+    html: `<p>Se cargan como compras en cuotas de <b>${esc(nom)}</b>, ya en la cuota que corresponde. Destildá las que no quieras agregar.</p><div class="rs-lista">${lista.map(fila).join('')}</div>`,
+    ok: 'Cargar', sec: 'Cancelar',
+    alOk: () => {
+      const hoy = hoyISO(); let n = 0;
+      document.querySelectorAll('.rs-chk:checked').forEach(ch => {
+        const c = lista[+ch.dataset.i]; if (!c || c.ya) return;
+        // el resumen anclado en su vencimiento dice en qué mes cae la cuota actual: de ahí se cuenta hacia atrás
+        const ini = mesDeFecha(rs.vence) - (c.n - 1), anio = Math.floor(ini / 12), mes = ini % 12 + 1;
+        gastos.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + n,
+          producto: c.concepto, monto: Math.round(c.monto * c.total * 100) / 100, estimado: 0, categoria: categoriaDe(c.concepto),
+          fecha: c.fecha && c.fecha <= hoy ? c.fecha : hoy, lugar: '', cuotaIni: `${anio}-${String(mes).padStart(2, '0')}`,
+          pago: { medio: CREDITO, tarjeta: nom, cuotas: c.total },
+        });
+        n++;
+      });
+      if (!n) { toast('No se cargó ninguna'); return; }
+      persistir(); renderCuotas(); renderHistorial(); toast(`${n} compra(s) en cuotas cargadas`);
+    },
+  });
+}
+
 function bloqueResumen(nom) {
   const rs = resumenes[nom], q = esc(nom);
   if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… puede tardar unos segundos.</p></div>';
@@ -33,6 +71,7 @@ function bloqueResumen(nom) {
     <div class="tj-res"><div><small>Total a pagar</small><b>${peso(rs.saldo)}</b></div><div><small>Pago mínimo</small><b>${peso(rs.minimo || 0)}</b></div><div><small>Cargos del banco</small><b>${peso(rs.cargos || 0)}</b></div></div>
     <small class="rs-f">${[rs.cierre ? 'Cierre ' + fechaCorta(rs.cierre) : '', rs.proxCierre ? 'próximo cierre ' + fechaCorta(rs.proxCierre) : '', rs.proxVence ? 'próximo vencimiento ' + fechaCorta(rs.proxVence) : ''].filter(Boolean).join(' · ')}</small>
     ${pagoAnt ? `<small class="rs-f">${pagoAnt}</small>` : ''}
+    ${botonCargarCuotas(nom, rs)}
     ${filas ? `<div class="rs-tabla"><div class="rs-fila rs-th"><span>Cuotas a vencer</span><span>Resumen</span><span>App</span><span></span></div>${filas}</div><small class="rs-f">Una diferencia suele ser una compra en cuotas anterior a la app, o una compra que no cargaste.</small>` : ''}
     <div class="rs-acc"><button class="ghost" data-rs-imp="${q}">${vencido ? 'Importar el resumen nuevo' : 'Actualizar resumen'}</button><button class="ghost del" data-rs-del="${q}">Quitar</button></div>
   </div>`;
@@ -43,6 +82,7 @@ async function leerResumen(doc) {
 - "cierre": fecha de cierre de ESTE resumen (el del período que se está informando). "vencimiento": fecha de vencimiento de ESTE resumen. "cierre_anterior": fecha de cierre del resumen anterior. "proximo_cierre" y "proximo_vencimiento". Todas en formato AAAA-MM-DD; si no figura, vacío. Las fechas pueden venir como "15-Oct-26" o "28 oct. 26" (año 2026).
 - "saldo_actual": el total a pagar de este resumen, en pesos. "pago_minimo": el pago mínimo. "saldo_anterior": el saldo del resumen anterior. "pago_realizado": lo que se pagó del saldo anterior ("su pago"), como número positivo; 0 si no hubo.
 - "cargos_banco": suma en pesos de lo que cobra el banco aparte de los consumos: comisiones, impuesto de sellos, IVA, intereses y seguros. NO incluyas consumos ni cuotas de compras.
+- "cuotas_en_curso": las líneas del detalle que son UNA CUOTA de una compra en cuotas (el concepto termina en algo como "07/12" o "C.10/12"). Por cada una: "concepto" (el comercio tal cual figura, sin el número de cuota ni códigos), "fecha_compra" (la fecha que figura en esa línea, AAAA-MM-DD), "cuota_actual" (el 07 de 07/12), "cuotas_total" (el 12) y "monto_cuota" (el importe de esa cuota en este resumen). No incluyas compras de un solo pago.
 - "cuotas_a_vencer": la tabla "Cuotas a vencer" si existe: una entrada por mes con "mes" (AAAA-MM; "Noviembre-26" es 2026-11) y "monto" en pesos. Si no hay tabla, lista vacía.
 Los importes argentinos usan punto para los miles y coma para los decimales: 56.577,78 es 56577.78. Si un dato no figura, usá 0 o vacío.`;
   const schema = {
@@ -50,6 +90,7 @@ Los importes argentinos usan punto para los miles y coma para los decimales: 56.
     properties: {
       cierre: { type: 'STRING' }, vencimiento: { type: 'STRING' }, cierre_anterior: { type: 'STRING' }, proximo_cierre: { type: 'STRING' }, proximo_vencimiento: { type: 'STRING' },
       saldo_actual: { type: 'NUMBER' }, pago_minimo: { type: 'NUMBER' }, saldo_anterior: { type: 'NUMBER' }, pago_realizado: { type: 'NUMBER' }, cargos_banco: { type: 'NUMBER' },
+      cuotas_en_curso: { type: 'ARRAY', items: { type: 'OBJECT', properties: { concepto: { type: 'STRING' }, fecha_compra: { type: 'STRING' }, cuota_actual: { type: 'NUMBER' }, cuotas_total: { type: 'NUMBER' }, monto_cuota: { type: 'NUMBER' } }, required: ['concepto', 'cuota_actual', 'cuotas_total', 'monto_cuota'] } },
       cuotas_a_vencer: { type: 'ARRAY', items: { type: 'OBJECT', properties: { mes: { type: 'STRING' }, monto: { type: 'NUMBER' } }, required: ['mes', 'monto'] } },
     },
     required: ['vencimiento', 'saldo_actual'],
@@ -66,6 +107,8 @@ Los importes argentinos usan punto para los miles y coma para los decimales: 56.
     cierre, vence, cierreAnt, proxCierre, proxVence, leido: hoyISO(),
     saldo: Math.round(Number(r.saldo_actual) * 100) / 100, minimo: Number(r.pago_minimo) || 0,
     saldoAnt: Number(r.saldo_anterior) || 0, pagoAnt: Math.abs(Number(r.pago_realizado) || 0), cargos: Math.round(Number(r.cargos_banco) || 0),
+    cuotasEnCurso: (r.cuotas_en_curso || []).map(c => ({ concepto: nombreTicket(String(c.concepto || '')), fecha: isoOk(c.fecha_compra), n: Math.round(Number(c.cuota_actual)), total: Math.round(Number(c.cuotas_total)), monto: Math.round(Number(c.monto_cuota) * 100) / 100 }))
+      .filter(c => c.concepto && c.n >= 1 && c.total >= 2 && c.total <= 60 && c.n <= c.total && c.monto > 0),
     cuotasVencer: (r.cuotas_a_vencer || []).filter(c => /^\d{4}-\d{2}$/.test(c.mes) && Number(c.monto) > 0).map(c => ({ mes: c.mes, monto: Number(c.monto) })).sort((a, b) => a.mes.localeCompare(b.mes)),
   };
 }
@@ -101,6 +144,7 @@ $('cuotasCont').addEventListener('click', e => {
     inp.addEventListener('change', () => { if (inp.files[0]) importarResumen(nom, inp.files[0]); });
     inp.click(); return;
   }
+  const car = e.target.closest('[data-rs-cargar]'); if (car) { cargarCuotasDelResumen(car.dataset.rsCargar); return; }
   const del = e.target.closest('[data-rs-del]');
   if (del && confirm('¿Quitar el resumen guardado de esta tarjeta?')) { delete resumenes[del.dataset.rsDel]; guardarResumenes(); renderCuotas(); }
 });

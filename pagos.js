@@ -102,7 +102,7 @@ function renderMisTarjetas() {
   const c = $('misTarjetas'); if (!c) return;
   c.innerHTML = (tarjetas.length ? tarjetas.map((t, i) => {
     const n = usosTarjeta(t.nombre);
-    return `<div class="mt-fila"><div class="mt-t"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(t.nombre)}</b><small>${n ? n + ' compra(s) con esta tarjeta' : 'Sin compras todavía'}</small></div>
+    return `<div class="mt-fila" style="--h:${tonoTarjeta(t.nombre)}"><div class="mt-t"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(t.nombre)}</b><small>${n ? n + ' compra(s) con esta tarjeta' : 'Sin compras todavía'}</small></div>
       <div class="mt-acc"><button class="ghost" data-mt-ren="${i}">Renombrar</button><button class="ghost del" data-mt-del="${i}">Quitar</button></div>
       <label class="mt-conf">Primera cuota de cada compra
         <select data-mt-desde="${i}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>

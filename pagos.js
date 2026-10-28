@@ -74,13 +74,14 @@ function planesCuotas() {
     const k = g.compraId || g.id;
     let p = m.get(k);
     if (!p) { p = { key: k, tarjeta: g.pago.tarjeta, cuotas: Math.max(1, g.pago.cuotas || 1), fecha: g.fecha, lugar: g.lugar || '', total: 0, nombres: [] }; m.set(k, p); }
-    p.total += Number(g.monto) || 0; p.nombres.push(g.producto); if (g.nota && !p.nota) p.nota = g.nota;
+    p.total += Number(g.monto) || 0; p.nombres.push(g.producto); if (g.cuotaIni && !p.cuotaIni) p.cuotaIni = g.cuotaIni; if (g.nota && !p.nota) p.nota = g.nota;
   }
   return [...m.values()].map(p => {
     const t = tarjetas.find(x => x.nombre === p.tarjeta);
     // con el resumen del banco las fechas son exactas: la compra entra en el resumen que cierra después de la fecha de compra
     const rs = resumenes[p.tarjeta];
-    if (rs && rs.cierre && rs.cierreAnt && rs.proxCierre && rs.proxVence && p.fecha > rs.cierreAnt && p.fecha <= rs.proxCierre) p.ini = mesDeFecha(p.fecha <= rs.cierre ? rs.vence : rs.proxVence);
+    if (p.cuotaIni) p.ini = mesDeFecha(p.cuotaIni + '-01');   // cargada desde el resumen del banco: ya se sabe en qué mes empezó
+    else if (rs && rs.cierre && rs.cierreAnt && rs.proxCierre && rs.proxVence && p.fecha > rs.cierreAnt && p.fecha <= rs.proxCierre) p.ini = mesDeFecha(p.fecha <= rs.cierre ? rs.vence : rs.proxVence);
     else p.ini = mesDeFecha(p.fecha) + (t ? t.desde : 0) + (t && t.cierre && Number(p.fecha.slice(8, 10)) > t.cierre ? 1 : 0);
     p.valor = p.total / p.cuotas;
     p.n = cur - p.ini + 1;                                   // número de la cuota de este mes (≤0: todavía no empieza; >cuotas: terminó)

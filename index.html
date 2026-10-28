@@ -203,22 +203,23 @@
     <!-- AJUSTES -->
     <section id="tab-ajustes" class="tab">
       <h1>Ajustes</h1>
-      <div id="instalarApp" class="panel" hidden>
+      <div id="instalarApp" class="panel aj" style="--h:150" hidden>
         <b>Instalá la app en tu celular</b>
         <p id="instalarTxt" class="hint"></p>
         <button id="instalarBtn" class="primary" hidden>Instalar ahora</button>
       </div>
-      <details id="ayuda" class="reporte">
+      <details id="ayuda" class="reporte aj" style="--h:190">
         <summary><span>Cómo usar la app (guía rápida)</span></summary>
         <div id="ayudaCont"></div>
       </details>
       <h2>Mis tarjetas</h2>
       <div id="misTarjetas" class="panel"></div>
-      <details id="misCategorias" class="reporte">
+      <details id="misCategorias" class="reporte aj" style="--h:280">
         <summary><span>Ordenar mis categorías</span></summary>
         <p class="hint">Si tenés categorías repetidas o mal escritas (por ejemplo «Panuelos descartable» y «Panuelos descartables»), pasá todos sus gastos a otra con un toque. Las categorías base no se tocan.</p>
         <div id="catLista"></div>
       </details>
+      <div class="aj aj-sec" style="--h:250">
       <h2>Inteligencia artificial</h2>
       <p class="hint">Podés usar una o las dos IAs gratuitas. Si la principal falla, la app prueba la otra, y si ninguna responde usa un intérprete local por reglas. Las claves se guardan solo en este dispositivo.</p>
       <label>Antes de registrar
@@ -248,8 +249,9 @@
       <button id="guardarAjustes" class="primary">Guardar ajustes</button>
       <button id="probarIA" class="ghost" style="width:100%;margin-top:10px">Probar las IAs</button>
       <p id="probarEstado" class="hint" style="white-space:pre-line"></p>
+      </div>
 
-      <div id="driveBloque">
+      <div id="driveBloque" class="aj aj-sec" style="--h:30">
       <h2>Copia en Google Drive</h2>
       <div class="panel" id="drivePanel">
         <p id="driveEstado" class="hint" style="white-space:pre-line;margin-top:0"></p>
@@ -274,6 +276,7 @@
 
       </div>
 
+      <div class="aj aj-sec" style="--h:340">
       <h2 id="tituloManual">Copia de seguridad</h2>
       <p class="hint aviso-txt" style="margin-top:0"><b>Importante:</b> tus gastos se guardan solo en este celular. Si borrás los datos del navegador o desinstalás la app, <b>se pierden</b>. Con una copia los recuperás con «Importar copia».</p>
       <p class="hint">Enviá la copia por WhatsApp, correo o guardala donde prefieras.</p>
@@ -286,9 +289,10 @@
       </div>
       <input id="archivo" type="file" accept=".json,.txt,application/json,text/plain" hidden>
       <button id="borrarTodo" class="danger">Borrar todos los datos</button>
+      </div>
 
       <h2>Acerca de</h2>
-      <div class="panel acerca">
+      <div class="panel acerca aj" style="--h:55">
         <img src="logo.jpg" alt="AM Soluciones Informáticas" class="logo-acerca" width="640" height="457">
         <p><b>Gastos por voz</b><br>Desarrollada por <b>AM Soluciones Informáticas</b>.</p>
         <a class="boton-wsp" href="https://wa.me/5493472528147?text=Hola%2C%20te%20escribo%20desde%20la%20app%20Gastos%20por%20voz" target="_blank" rel="noopener">

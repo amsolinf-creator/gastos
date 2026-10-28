@@ -444,3 +444,16 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .rs-ok { color: #4ade80; } .rs-dif { color: #fbbf24; }
 .rs-acc { display: flex; gap: 8px; margin-top: 10px; } .rs-acc button { flex: 1; }
 .rs > button.ghost { width: 100%; }
+
+/* Ajustes: cada sección con su color suave */
+.aj { --h: 210; background: hsl(var(--h) 40% 20% / .6); border: 1px solid hsl(var(--h) 55% 60% / .4); border-left: 5px solid hsl(var(--h) 70% 62%); border-radius: var(--r); }
+.aj-sec { padding: 4px 16px 16px; margin-top: 18px; }
+.aj-sec > h2:first-child, .aj-sec > h2:first-of-type { margin-top: 12px; }
+.aj-sec .panel { background: transparent; border: 0; padding: 0; }
+.aj summary { color: hsl(var(--h) 80% 82%); }
+.aj-sec h2 { color: hsl(var(--h) 80% 82%); }
+#tab-ajustes details.aj { padding: 2px 4px; }
+/* Mis tarjetas: cada tarjeta con su color (el mismo que en Cuotas) */
+#misTarjetas { background: transparent; border: 0; padding: 0; }
+.mt-fila { --h: 210; background: hsl(var(--h) 40% 20% / .6); border: 1px solid hsl(var(--h) 55% 60% / .4); border-left: 5px solid hsl(var(--h) 70% 62%); border-radius: var(--r); padding: 14px 16px; margin-bottom: 12px; }
+.mt-fila .mt-t svg { color: hsl(var(--h) 80% 72%); }

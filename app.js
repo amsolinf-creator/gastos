@@ -84,10 +84,20 @@ let lugarActual = cargar(LS_LUGAR, '');
 const LS_LUGCAT = 'gastos.lugarCat.v1';
 let lugarCat = cargar(LS_LUGCAT, {});   // { "avalle repuestos": "Auto" }: la categoría que usaste con cada lugar
 
-const opcionesLugar = sel => {
+const opcionesLugar = (sel, conNuevo = false) => {
   const lista = sel && !lugares.includes(sel) ? [...lugares, sel] : lugares;
-  return '<option value="">Sin especificar</option>' + lista.map(l => `<option${l === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  return '<option value="">Sin especificar</option>' + lista.map(l => `<option${l === sel ? ' selected' : ''}>${esc(l)}</option>`).join('') + (conNuevo ? '<option value="__nuevo__">➕ Agregar lugar…</option>' : '');
 };
+// pide un lugar nuevo y lo suma a la lista (o devuelve el que ya existía); '' si se cancela
+async function pedirLugar() {
+  const n = await pedirTexto({ titulo: 'Nuevo lugar', placeholder: 'Ej: Verdulería de la esquina' });
+  if (!n) return '';
+  const ya = lugares.find(l => l.toLowerCase() === n.toLowerCase());
+  if (ya) return ya;
+  const nuevo = n.charAt(0).toUpperCase() + n.slice(1);
+  lugares.push(nuevo); localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
+  return nuevo;
+}
 function renderLugares() {
   for (const id of ['cLugar']) {
     $(id).innerHTML = opcionesLugar(lugarActual) + '<option value="__nuevo__">➕ Agregar lugar…</option>';
@@ -95,15 +105,8 @@ function renderLugares() {
   }
 }
 async function cambiarLugar(valor) {
-  if (valor === '__nuevo__') {
-    const n = await pedirTexto({ titulo: 'Nuevo lugar', placeholder: 'Ej: Verdulería de la esquina' });
-    if (n) {
-      const ya = lugares.find(l => l.toLowerCase() === n.toLowerCase());
-      lugarActual = ya || n.charAt(0).toUpperCase() + n.slice(1);
-      if (!ya) lugares.push(lugarActual);
-      localStorage.setItem(LS_LUGARES, JSON.stringify(lugares));
-    }
-  } else lugarActual = valor;
+  if (valor === '__nuevo__') { const n = await pedirLugar(); if (n) lugarActual = n; }
+  else lugarActual = valor;
   try { localStorage.setItem(LS_LUGAR, JSON.stringify(lugarActual)); } catch {}
   renderLugares();
 }
@@ -570,13 +573,14 @@ const estaSel = g => selG.has(g.id) || (!!g.compraId && selC.has(g.compraId));  
 const filaGasto = (g, enCompra = false) => `<div class="gasto${enCompra ? ' sub' : ''}">${modoSel && !enCompra ? chkSel('g:' + g.id, selG.has(g.id)) : ''}<div><div class="nombre"><i class="dot" style="--c:${colorCat(g.categoria)}"></i>${esc(g.producto)}</div>
   <div class="metas">
     <select class="mini" data-gid="${g.id}" data-c="categoria" aria-label="Categoría">${opcionesCategoria(g.categoria)}</select>
-    ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '').replace('Sin especificar', 'Sin lugar')}</select>
+    ${enCompra ? '' : `<select class="mini" data-gid="${g.id}" data-c="lugar" aria-label="Lugar">${opcionesLugar(g.lugar || '', true).replace('Sin especificar', 'Sin lugar')}</select>
     <button class="mini-pago${g.pago ? ' on' : ''}" data-pago-gasto="${g.id}">${esc(pagoTxt(g.pago) || 'Medio de pago')}</button>`}
   </div>${enCompra ? '' : `<input class="nota-in" data-nota-gasto="${g.id}" value="${esc(g.nota || '')}" maxlength="140" placeholder="Observaciones" aria-label="Observaciones">`}${g.dolar ? `<small>USD ${(g.monto / g.dolar).toFixed(2)}</small>` : ''}${enCompra && g.estimado && Math.abs(g.estimado - g.monto) > 1 ? `<small>precio estimado ${peso(g.estimado)}</small>` : ''}</div>
   <div class="der"><b>${peso(g.monto)}</b><button data-borrar="${g.id}" aria-label="Borrar">${ICX}</button></div></div>`;
 
 // Una compra = una sola tarjeta con el lugar y el total; el detalle se despliega
 const notaDe = items => (items.find(g => g.nota) || {}).nota || '';
+const nombreDe = items => (items.find(g => g.nombre) || {}).nombre || '';
 function tarjetaCompra(items) {
   const id = items[0].compraId, lugar = items[0].lugar || '';
   const total = items.reduce((t, g) => t + g.monto, 0);
@@ -584,14 +588,15 @@ function tarjetaCompra(items) {
   const conciliada = items.every(g => g.conTicket);
   return `<details class="compra-g" data-cid="${id}"${abiertos.has(id) ? ' open' : ''}>
     <summary>
-      <span class="cg-t">${modoSel ? chkSel('c:' + id, selC.has(id)) : ''}<i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small>${notaDe(items) ? `<small class="cg-nota">📝 ${esc(notaDe(items))}</small>` : ''}</span></span>
+      <span class="cg-t">${modoSel ? chkSel('c:' + id, selC.has(id)) : ''}<i class="cg-ic"><svg class="ic"><use href="#i-bag"/></svg></i><span><b>${esc(nombreDe(items) || lugar || 'Compra')}</b><small>${items.length} producto(s)${estimadoTotal && Math.abs(estimadoTotal - total) > 1 ? ' · estimado ' + peso(estimadoTotal) : ''}${conciliada ? ' · ✓ ticket' : ' · estimado'}${pagoTxt(items[0].pago) ? ' · ' + esc(pagoTxt(items[0].pago)) : ''}</small>${notaDe(items) ? `<small class="cg-nota">📝 ${esc(notaDe(items))}</small>` : ''}</span></span>
       <b class="cg-m">${peso(total)}</b>
     </summary>
     <div class="cg-det">
       <div class="cg-acc">
-        <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar).replace('Sin especificar', 'Sin lugar')}</select>
+        <select class="mini" data-cid-lugar="${id}" aria-label="Lugar de la compra">${opcionesLugar(lugar, true).replace('Sin especificar', 'Sin lugar')}</select>
         <button class="cg-del" data-borrar-compra="${id}">Borrar compra</button>
       </div>
+      <label class="cg-fecha">Nombre de la compra<input type="text" data-cid-nombre="${id}" value="${esc(nombreDe(items))}" maxlength="60" placeholder="${esc(lugar || 'Ej: Compra del mes')}"></label>
       <label class="cg-fecha">Observaciones<input type="text" data-cid-nota="${id}" value="${esc(notaDe(items))}" maxlength="140" placeholder="Ej: Reintegro del 20% en el próximo resumen"></label>
       <label class="cg-fecha">Fecha de la compra<input type="date" data-cid-fecha="${id}" value="${items[0].fecha}" max="${hoyISO()}"></label>
       <button class="cg-pago" data-pago-compra="${id}"><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(pagoTxt(items[0].pago) || 'Elegir el medio de pago')}</button>
@@ -668,10 +673,19 @@ $('lista').addEventListener('toggle', e => {
   if (e.target.open) abiertos.add(cid); else abiertos.delete(cid);
 }, true);
 // cambiar el lugar de toda la compra
-$('lista').addEventListener('change', e => {
+$('lista').addEventListener('change', async e => {
   const cid = e.target.dataset.cidLugar; if (!cid) return;
-  gastos.filter(g => g.compraId === cid).forEach(g => { g.lugar = e.target.value; });
-  persistir(); renderHistorial(); toast('Lugar de la compra actualizado');
+  let valor = e.target.value;
+  if (valor === '__nuevo__') { valor = await pedirLugar(); if (!valor) { renderHistorial(); return; } }
+  gastos.filter(g => g.compraId === cid).forEach(g => { g.lugar = valor; });
+  persistir(); renderHistorial(); renderCuotas(); toast('Lugar de la compra actualizado');
+});
+// nombre de la compra (reemplaza al lugar como título; vacío = vuelve a mostrar el lugar)
+$('lista').addEventListener('change', e => {
+  const cid = e.target.dataset.cidNombre; if (cid === undefined) return;
+  const v = e.target.value.trim().slice(0, 60);
+  gastos.filter(g => g.compraId === cid).forEach(g => { if (v) g.nombre = v; else delete g.nombre; });
+  persistir(); renderHistorial(); renderCuotas(); toast('Nombre de la compra actualizado');
 });
 // observaciones de una compra o de un gasto suelto
 $('lista').addEventListener('change', e => {
@@ -695,6 +709,7 @@ $('lista').addEventListener('change', async e => {
   const g = gastos.find(x => x.id === id); if (!g) return;
   let valor = e.target.value;
   if (valor === '__nueva__') valor = (await pedirCategoria()) || g.categoria;   // "➕ Nueva categoría…"
+  if (valor === '__nuevo__') valor = (await pedirLugar()) || g.lugar || '';   // "➕ Agregar lugar…"
   g[e.target.dataset.c] = valor;
   if (e.target.dataset.c === 'categoria') aprenderCategoria(g.producto, g.categoria);
   persistir(); renderHistorial(); toast('Cambio guardado');

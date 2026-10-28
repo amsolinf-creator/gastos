@@ -74,7 +74,7 @@ function planesCuotas() {
     const k = g.compraId || g.id;
     let p = m.get(k);
     if (!p) { p = { key: k, tarjeta: g.pago.tarjeta, cuotas: Math.max(1, g.pago.cuotas || 1), fecha: g.fecha, lugar: g.lugar || '', total: 0, nombres: [] }; m.set(k, p); }
-    p.total += Number(g.monto) || 0; p.nombres.push(g.producto); if (g.nombre && !p.nombre) p.nombre = g.nombre; if (g.nota && !p.nota) p.nota = g.nota;
+    p.total += Number(g.monto) || 0; p.nombres.push(g.producto); if (g.nota && !p.nota) p.nota = g.nota;
   }
   return [...m.values()].map(p => {
     const t = tarjetas.find(x => x.nombre === p.tarjeta);
@@ -88,7 +88,7 @@ function planesCuotas() {
     p.faltan = p.cuotas - p.pagadas;                         // incluye la de este mes
     p.saldo = p.valor * p.faltan;
     p.fin = p.ini + p.cuotas - 1;
-    p.desc = p.nombre || p.lugar || (p.nombres.length > 2 ? `${p.nombres.slice(0, 2).join(', ')} y ${p.nombres.length - 2} más` : p.nombres.join(', '));
+    p.desc = p.lugar || (p.nombres.length > 2 ? `${p.nombres.slice(0, 2).join(', ')} y ${p.nombres.length - 2} más` : p.nombres.join(', '));
     return p;
   });
 }

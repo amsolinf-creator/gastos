@@ -36,6 +36,7 @@ const AYUDA = [
     'Elegí también la fecha de cierre del resumen (se usa solo el día, por ejemplo el 24): las compras hechas después de esa fecha pasan a la cuota del mes siguiente.' ] },
   { t: 'Historial: corregir y borrar', p: [
     'Tocá una compra para ver el detalle y corregir la categoría, el lugar o la fecha.',
+    'Dentro de una compra abierta podés ponerle un nombre propio (por ejemplo «Compra del mes») y elegir el lugar, o agregar uno nuevo con «➕ Agregar lugar…».',
     'Cada compra y cada gasto tiene un campo «Observaciones» para anotar lo que quieras, por ejemplo «Reintegro del 20% en el próximo resumen». La nota se ve en el Historial, en Cuotas y en el Excel.',
     'Para borrar varios juntos: «Seleccionar para borrar varios», marcá compras, gastos o días enteros y tocá Borrar.',
     'En Ajustes → «Ordenar mis categorías» podés unir categorías repetidas.' ] },

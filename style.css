@@ -463,3 +463,5 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .rs-opc { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); }
 .rs-opc input { width: 20px; height: 20px; margin-top: 3px; flex: none; }
 .rs-opc small { display: block; opacity: .7; font-size: 12px; }
+
+.rs-error { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(248,113,113,.15); border: 1px solid rgba(248,113,113,.4); color: #fca5a5; font-size: 13px; word-break: break-word; }

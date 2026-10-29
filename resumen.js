@@ -21,7 +21,8 @@ function cuotasPendientesDeCargar(nom, rs) {
   return (rs.cuotasEnCurso || []).map(c => ({ ...c, ya: planes.some(p => p.cuotas === c.total && Math.abs(p.valor - c.monto) < 1) }));
 }
 function botonCargarCuotas(nom, rs) {
-  const lista = cuotasPendientesDeCargar(nom, rs); if (!lista.length) return '';
+  const lista = cuotasPendientesDeCargar(nom, rs);
+  if (!lista.length) return `<small class="rs-f rs-dif">${rs.cuotasEnCurso ? 'No encontré compras en cuotas en el detalle del archivo. Si tu resumen las muestra, subí un PDF o una imagen que incluya esa parte (las líneas con cuota, como 07/12).' : 'Volvé a importar el resumen para detectar las compras en cuotas.'}</small>`;
   const faltan = lista.filter(c => !c.ya).length;
   return faltan ? `<button class="primary rs-cargar" data-rs-cargar="${esc(nom)}">Cargar las cuotas del resumen (${faltan})</button>` : '<small class="rs-f rs-ok">✓ Las compras en cuotas del resumen ya están cargadas</small>';
 }
@@ -82,7 +83,7 @@ async function leerResumen(doc) {
 - "cierre": fecha de cierre de ESTE resumen (el del período que se está informando). "vencimiento": fecha de vencimiento de ESTE resumen. "cierre_anterior": fecha de cierre del resumen anterior. "proximo_cierre" y "proximo_vencimiento". Todas en formato AAAA-MM-DD; si no figura, vacío. Las fechas pueden venir como "15-Oct-26" o "28 oct. 26" (año 2026).
 - "saldo_actual": el total a pagar de este resumen, en pesos. "pago_minimo": el pago mínimo. "saldo_anterior": el saldo del resumen anterior. "pago_realizado": lo que se pagó del saldo anterior ("su pago"), como número positivo; 0 si no hubo.
 - "cargos_banco": suma en pesos de lo que cobra el banco aparte de los consumos: comisiones, impuesto de sellos, IVA, intereses y seguros. NO incluyas consumos ni cuotas de compras.
-- "cuotas_en_curso": las líneas del detalle que son UNA CUOTA de una compra en cuotas (el concepto termina en algo como "07/12" o "C.10/12"). Por cada una: "concepto" (el comercio tal cual figura, sin el número de cuota ni códigos), "fecha_compra" (la fecha que figura en esa línea, AAAA-MM-DD), "cuota_actual" (el 07 de 07/12), "cuotas_total" (el 12) y "monto_cuota" (el importe de esa cuota en este resumen). No incluyas compras de un solo pago.
+- "cuotas_en_curso": revisá TODO el detalle de movimientos (por ejemplo la sección «CUOTAS DEL MES», o las líneas de la lista con «C.10/12») y listá las líneas que son UNA CUOTA que son UNA CUOTA de una compra en cuotas (el concepto termina en algo como "07/12" o "C.10/12"). Por cada una: "concepto" (el comercio tal cual figura, sin el número de cuota ni códigos), "fecha_compra" (la fecha que figura en esa línea, AAAA-MM-DD), "cuota_actual" (el 07 de 07/12), "cuotas_total" (el 12) y "monto_cuota" (el importe de esa cuota en este resumen). No incluyas compras de un solo pago.
 - "cuotas_a_vencer": la tabla "Cuotas a vencer" si existe: una entrada por mes con "mes" (AAAA-MM; "Noviembre-26" es 2026-11) y "monto" en pesos. Si no hay tabla, lista vacía.
 Los importes argentinos usan punto para los miles y coma para los decimales: 56.577,78 es 56577.78. Si un dato no figura, usá 0 o vacío.`;
   const schema = {
@@ -93,7 +94,7 @@ Los importes argentinos usan punto para los miles y coma para los decimales: 56.
       cuotas_en_curso: { type: 'ARRAY', items: { type: 'OBJECT', properties: { concepto: { type: 'STRING' }, fecha_compra: { type: 'STRING' }, cuota_actual: { type: 'NUMBER' }, cuotas_total: { type: 'NUMBER' }, monto_cuota: { type: 'NUMBER' } }, required: ['concepto', 'cuota_actual', 'cuotas_total', 'monto_cuota'] } },
       cuotas_a_vencer: { type: 'ARRAY', items: { type: 'OBJECT', properties: { mes: { type: 'STRING' }, monto: { type: 'NUMBER' } }, required: ['mes', 'monto'] } },
     },
-    required: ['vencimiento', 'saldo_actual'],
+    required: ['vencimiento', 'saldo_actual', 'cuotas_en_curso', 'cuotas_a_vencer'],
   };
   const r = await llamarGeminiImagenes(prompt, schema, [doc]);
   const cierre = isoOk(r.cierre), vence = isoOk(r.vencimiento);
@@ -123,7 +124,8 @@ async function importarResumen(nom, file) {
     try {
       const doc = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? { mime: 'application/pdf', base64: await archivoABase64(file) } : await prepararImagen(file, 2000);
       resumenes[nom] = await leerResumen(doc); guardarResumenes();
-      toast('Resumen leído');
+      const nc = resumenes[nom].cuotasEnCurso.length;
+      toast(nc ? `Resumen leído: encontré ${nc} compra(s) en cuotas` : 'Resumen leído, pero no encontré compras en cuotas en el detalle', 5000);
     } catch (e) { toast('No se pudo leer el resumen: ' + (e.message || e)); }
     finally { leyendoRs = ''; renderCuotas(); }
   };

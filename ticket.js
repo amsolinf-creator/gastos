@@ -6,7 +6,7 @@ let cn = null;   // estado de la conciliación abierta
 
 const numCn = v => { const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 const redondear2 = n => Math.round(n * 100) / 100;
-const topeLargo = () => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(35000) : undefined);
+const topeLargo = (ms = 35000) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
 
 // "TOMATE PERITA X KG" => "Tomate perita x kg"
 // El nombre del producto queda tal cual figura en el ticket (solo se acomodan los espacios)
@@ -106,12 +106,12 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
 }
 
 // Pedido a Gemini con una o más imágenes; si el modelo está saturado o sin cuota se prueba el de respaldo
-async function llamarGeminiImagenes(prompt, schema, imagenes) {
+async function llamarGeminiImagenes(prompt, schema, imagenes, topeMs) {
   const modelos = [...new Set([ajustes.modelo || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
   let ultimo = '';
   for (const m of modelos) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
-      signal: topeLargo(), method: 'POST',
+      signal: topeLargo(topeMs), method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }, ...imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.base64 } }))] }],

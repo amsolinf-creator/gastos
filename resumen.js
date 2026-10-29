@@ -2,6 +2,7 @@
 // Solo se guardan montos y fechas (nada de nombre, domicilio ni números de cuenta).
 const RESUMEN_AVISO = 'gastos.resumenAviso.v1';
 let leyendoRs = '';
+const errorRs = {};   // último error de lectura por tarjeta: queda a la vista hasta el próximo intento
 
 const isoOk = s => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? String(s) : '');
 const fechaCorta = iso => { const [, m, d] = iso.split('-'); return `${+d} ${MESES[+m - 1].slice(0, 3).toLowerCase()}`; };
@@ -56,8 +57,9 @@ function cargarCuotasDelResumen(nom) {
 
 function bloqueResumen(nom) {
   const rs = resumenes[nom], q = esc(nom);
+  const err = errorRs[nom] ? `<p class="rs-error">⚠ No se pudo leer el resumen: ${esc(errorRs[nom])}</p>` : '';
   if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… puede tardar unos segundos.</p></div>';
-  if (!rs) return `<div class="rs"><button class="ghost" data-rs-imp="${q}">📄 Importar resumen del banco</button><small class="hint">PDF o foto: controlás el vencimiento, el total y las cuotas que te cobran.</small></div>`;
+  if (!rs) return `<div class="rs">${err}<button class="ghost" data-rs-imp="${q}">📄 Importar resumen del banco</button><small class="hint">PDF o foto: controlás el vencimiento, el total y las cuotas que te cobran.</small></div>`;
   const vencido = rs.vence && diasHasta(rs.vence) < 0;
   const planes = planesCuotas().filter(p => p.tarjeta === nom);
   const filas = (rs.cuotasVencer || []).map(c => {
@@ -66,7 +68,7 @@ function bloqueResumen(nom) {
     return `<div class="rs-fila"><span>${etqMes(k)}</span><span>${peso(c.monto)}</span><span>${peso(app)}</span>${est}</div>`;
   }).join('');
   const pagoAnt = rs.saldoAnt > 0 ? (rs.pagoAnt >= rs.saldoAnt - 1 ? '✓ Pagaste completo el resumen anterior' : `Del resumen anterior pagaste ${peso(rs.pagoAnt || 0)} de ${peso(rs.saldoAnt)}`) : '';
-  return `<div class="rs">
+  return `<div class="rs">${err}
     <div class="rs-cab"><b>Último resumen</b><small>leído el ${fmtFecha(rs.leido)}</small></div>
     ${rs.vence ? `<div class="rs-vto${vencido ? ' vencido' : ''}">${esc(textoVence(rs.vence))}</div>` : ''}
     <div class="tj-res"><div><small>Total a pagar</small><b>${peso(rs.saldo)}</b></div><div><small>Pago mínimo</small><b>${peso(rs.minimo || 0)}</b></div><div><small>Cargos del banco</small><b>${peso(rs.cargos || 0)}</b></div></div>
@@ -120,13 +122,13 @@ async function importarResumen(nom, file) {
   if (!ajustes.apiKey) { toast('Para leer el resumen hace falta la clave de Gemini (Ajustes)'); return; }
   if (file.size > 15 * 1024 * 1024) { toast('El archivo es muy grande (máximo 15 MB)'); return; }
   const seguir = async () => {
-    leyendoRs = nom; renderCuotas();
+    leyendoRs = nom; delete errorRs[nom]; renderCuotas();
     try {
       const doc = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? { mime: 'application/pdf', base64: await archivoABase64(file) } : await prepararImagen(file, 2000);
       resumenes[nom] = await leerResumen(doc); guardarResumenes();
       const nc = resumenes[nom].cuotasEnCurso.length;
       toast(nc ? `Resumen leído: encontré ${nc} compra(s) en cuotas` : 'Resumen leído, pero no encontré compras en cuotas en el detalle', 5000);
-    } catch (e) { toast('No se pudo leer el resumen: ' + (e.message || e)); }
+    } catch (e) { errorRs[nom] = String(e.message || e).slice(0, 300); }
     finally { leyendoRs = ''; renderCuotas(); }
   };
   if (localStorage.getItem(RESUMEN_AVISO)) { await seguir(); return; }

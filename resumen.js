@@ -58,7 +58,7 @@ function cargarCuotasDelResumen(nom) {
 function bloqueResumen(nom) {
   const rs = resumenes[nom], q = esc(nom);
   const err = errorRs[nom] ? `<p class="rs-error">⚠ No se pudo leer el resumen: ${esc(errorRs[nom])}</p>` : '';
-  if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… puede tardar unos segundos.</p></div>';
+  if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… puede tardar hasta un par de minutos.</p></div>';
   if (!rs) return `<div class="rs">${err}<button class="ghost" data-rs-imp="${q}">📄 Importar resumen del banco</button><small class="hint">PDF o foto: controlás el vencimiento, el total y las cuotas que te cobran.</small></div>`;
   const vencido = rs.vence && diasHasta(rs.vence) < 0;
   const planes = planesCuotas().filter(p => p.tarjeta === nom);
@@ -98,7 +98,7 @@ Los importes argentinos usan punto para los miles y coma para los decimales: 56.
     },
     required: ['vencimiento', 'saldo_actual', 'cuotas_en_curso', 'cuotas_a_vencer'],
   };
-  const r = await llamarGeminiImagenes(prompt, schema, [doc]);
+  const r = await llamarGeminiImagenes(prompt, schema, [doc], 120000);   // un resumen es largo: puede tardar más que un ticket
   const cierre = isoOk(r.cierre), vence = isoOk(r.vencimiento);
   if (!vence || !(Number(r.saldo_actual) >= 0)) throw new Error('no encontré el vencimiento y el total en ese archivo');
   let cierreAnt = isoOk(r.cierre_anterior), proxCierre = isoOk(r.proximo_cierre), proxVence = isoOk(r.proximo_vencimiento);

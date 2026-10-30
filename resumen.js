@@ -58,7 +58,7 @@ function cargarCuotasDelResumen(nom) {
 function bloqueResumen(nom) {
   const rs = resumenes[nom], q = esc(nom);
   const err = errorRs[nom] ? `<p class="rs-error">⚠ No se pudo leer el resumen: ${esc(errorRs[nom])}</p>` : '';
-  if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… puede tardar hasta un par de minutos.</p></div>';
+  if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… <b id="rsSeg">0</b> s. Dejá la pantalla encendida: puede tardar hasta un par de minutos.</p></div>';
   if (!rs) return `<div class="rs">${err}<button class="ghost" data-rs-imp="${q}">📄 Importar resumen del banco</button><small class="hint">PDF o foto: controlás el vencimiento, el total y las cuotas que te cobran.</small></div>`;
   const vencido = rs.vence && diasHasta(rs.vence) < 0;
   const planes = planesCuotas().filter(p => p.tarjeta === nom);
@@ -98,7 +98,7 @@ Los importes argentinos usan punto para los miles y coma para los decimales: 56.
     },
     required: ['vencimiento', 'saldo_actual', 'cuotas_en_curso', 'cuotas_a_vencer'],
   };
-  const r = await llamarGeminiImagenes(prompt, schema, [doc], 120000);   // un resumen es largo: puede tardar más que un ticket
+  const r = await llamarGeminiImagenes(prompt, schema, [doc], 120000, ['gemini-flash-lite-latest']);   // el modelo liviano responde mucho más rápido y alcanza para leer datos   // un resumen es largo: puede tardar más que un ticket
   const cierre = isoOk(r.cierre), vence = isoOk(r.vencimiento);
   if (!vence || !(Number(r.saldo_actual) >= 0)) throw new Error('no encontré el vencimiento y el total en ese archivo');
   let cierreAnt = isoOk(r.cierre_anterior), proxCierre = isoOk(r.proximo_cierre), proxVence = isoOk(r.proximo_vencimiento);
@@ -123,13 +123,19 @@ async function importarResumen(nom, file) {
   if (file.size > 15 * 1024 * 1024) { toast('El archivo es muy grande (máximo 15 MB)'); return; }
   const seguir = async () => {
     leyendoRs = nom; delete errorRs[nom]; renderCuotas();
+    const t0 = Date.now(); let candado = null;
+    const reloj = setInterval(() => { const el = document.getElementById('rsSeg'); if (el) el.textContent = Math.round((Date.now() - t0) / 1000); }, 1000);
+    try { candado = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch {}   // que la pantalla no se apague mientras lee
     try {
       const doc = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? { mime: 'application/pdf', base64: await archivoABase64(file) } : await prepararImagen(file, 2000);
-      resumenes[nom] = await leerResumen(doc); guardarResumenes();
+      let nuevo;
+      try { nuevo = await leerResumen(doc); }
+      catch (e) { if (e instanceof TypeError) nuevo = await leerResumen(doc); else throw e; }   // la red se cortó: un reintento
+      resumenes[nom] = nuevo; guardarResumenes();
       const nc = resumenes[nom].cuotasEnCurso.length;
       toast(nc ? `Resumen leído: encontré ${nc} compra(s) en cuotas` : 'Resumen leído, pero no encontré compras en cuotas en el detalle', 5000);
-    } catch (e) { errorRs[nom] = String(e.message || e).slice(0, 300); }
-    finally { leyendoRs = ''; renderCuotas(); }
+    } catch (e) { errorRs[nom] = String(e.message || e).slice(0, 300) + ` (a los ${Math.round((Date.now() - t0) / 1000)} s)`; }
+    finally { clearInterval(reloj); try { candado && candado.release(); } catch {} leyendoRs = ''; renderCuotas(); }
   };
   if (localStorage.getItem(RESUMEN_AVISO)) { await seguir(); return; }
   mostrarModal({

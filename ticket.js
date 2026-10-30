@@ -91,6 +91,8 @@ async function leerTicket(imagenes, nombresCarrito) {
 Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
 - Ignorá renglones que no son productos: IVA, subtotales, vuelto, medios de pago, puntos, datos del comercio.
 - Los importes argentinos usan punto para los miles y coma para los decimales: 1.250,50 es 1250.5.
+- Hay tickets donde el punto es decimal: "$12164.04" es 12164,04 pesos, y una cantidad como ".756" o "1.000" es 0,756 o 1 unidad. Respetá el valor real que figura en el ticket.
+- Los bloques de "beneficios", descuentos o promociones y el medio de pago no son productos: no los incluyas como líneas.
 - "comercio" y "fecha" (AAAA-MM-DD) si se leen; si no, vacío.`;
   const schema = {
     type: 'OBJECT',
@@ -109,15 +111,22 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
 async function llamarGeminiImagenes(prompt, schema, imagenes, topeMs, primeros = []) {
   const modelos = [...new Set([...primeros, ajustes.modelo || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
   let ultimo = '';
-  for (const m of modelos) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
-      signal: topeLargo(topeMs), method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }, ...imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.base64 } }))] }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
-      }),
-    });
+  for (const [i, m] of modelos.entries()) {
+    const ultimoModelo = i === modelos.length - 1;
+    let r;
+    try {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
+        signal: topeLargo(topeMs || (ultimoModelo ? 60000 : 40000)), method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ajustes.apiKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, ...imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.base64 } }))] }],
+          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+        }),
+      });
+    } catch (e) {   // se agotó la espera o se cortó la red: si hay otro modelo (más liviano y rápido) se prueba ese
+      ultimo = `${m}: ${e && e.name === 'TimeoutError' ? 'tardó demasiado en responder' : (e && e.message) || e}`;
+      if (ultimoModelo) break; else continue;
+    }
     if (r.ok) {
       const data = await r.json();
       try { return JSON.parse(data.candidates[0].content.parts[0].text); }

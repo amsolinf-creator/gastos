@@ -465,3 +465,10 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .rs-opc small { display: block; opacity: .7; font-size: 12px; }
 
 .rs-error { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(248,113,113,.15); border: 1px solid rgba(248,113,113,.4); color: #fca5a5; font-size: 13px; word-break: break-word; }
+
+/* Cuotas: tarjetas que se contraen */
+.tj-cab { cursor: pointer; gap: 8px; }
+.tj-cab > b { flex: 1; }
+.tj-flecha { display: inline-block; width: 20px; text-align: center; color: hsl(var(--h) 80% 72%); transition: transform .15s; }
+.tj.cerrada .tj-flecha { transform: rotate(-90deg); }
+.tj.cerrada .tj-cuerpo { display: none; }

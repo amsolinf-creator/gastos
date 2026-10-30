@@ -180,7 +180,11 @@ function tonoTarjeta(nom) {
 function proximoCierreTxt(nom) {
   const rs = resumenes[nom]; if (!rs || !rs.proxCierre) return '';
   const f = iso => { const [y, m, d] = iso.split('-'); return `${+d}/${+m}/${y}`; };
-  return `<div class="tj-prox">📅 Próximo cierre: <b>${f(rs.proxCierre)}</b>${rs.proxVence ? ` · vence el <b>${f(rs.proxVence)}</b>` : ''}</div>`;
+  const sumaDia = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  // el resumen que cierra en proxCierre se paga en el mes de su vencimiento; lo que se compra después va al mes siguiente
+  const mesPago = rs.proxVence ? mesDeFecha(rs.proxVence) : mesDeFecha(rs.proxCierre) + 1;
+  return `<div class="tj-prox">📅 Próximo cierre: <b>${f(rs.proxCierre)}</b>${rs.proxVence ? ` · vence el <b>${f(rs.proxVence)}</b>` : ''}
+    <small>Compras hasta el ${f(rs.proxCierre)} → primera cuota en <b>${etqMes(mesPago)}</b>. Desde el ${f(sumaDia(rs.proxCierre, 1))} → pasan a <b>${etqMes(mesPago + 1)}</b>.</small></div>`;
 }
 
 // ---------- Pantalla de Cuotas ----------

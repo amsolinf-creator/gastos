@@ -61,10 +61,13 @@ function bloqueResumen(nom) {
   if (leyendoRs === nom) return '<div class="rs"><p class="hint" style="margin:0">Leyendo el resumen… <b id="rsSeg">0</b> s. Dejá la pantalla encendida: puede tardar hasta un par de minutos.</p></div>';
   if (!rs) return `<div class="rs">${err}<button class="ghost" data-rs-imp="${q}">📄 Importar resumen del banco</button><small class="hint">PDF o foto: controlás el vencimiento, el total y las cuotas que te cobran.</small></div>`;
   const vencido = rs.vence && diasHasta(rs.vence) < 0;
-  const planes = planesCuotas().filter(p => p.tarjeta === nom);
+  // el banco rotula cada columna con el mes en que CIERRA el resumen y la app cuenta por el mes en que VENCE: se alinean sumando esa diferencia
+  const corrimiento = rs.cierre && rs.vence ? Math.max(0, Math.min(2, mesDeFecha(rs.vence) - mesDeFecha(rs.cierre))) : 0;
+  // el banco solo conoce las compras hechas hasta su cierre: lo posterior todavía no puede figurar en su tabla
+  const planes = planesCuotas().filter(p => p.tarjeta === nom && (!rs.cierre || p.fecha <= rs.cierre));
   const filas = (rs.cuotasVencer || []).map(c => {
-    const k = mesDeFecha(c.mes + '-01'), app = planes.reduce((s, p) => s + cuotaDelMes(p, k), 0), dif = Math.round(c.monto - app);
-    const est = Math.abs(dif) < 1 ? '<span class="rs-ok">✓ coincide</span>' : (dif > 0 ? `<span class="rs-dif">falta cargar ${peso(dif)}</span>` : `<span class="rs-dif">la app suma ${peso(-dif)} de más</span>`);
+    const k = mesDeFecha(c.mes + '-01') + corrimiento, app = planes.reduce((s, p) => s + cuotaDelMes(p, k), 0), dif = Math.round(c.monto - app);
+    const est = Math.abs(dif) < 1 ? '<span class="rs-ok">✓ coincide</span>' : (dif > 0 ? `<span class="rs-dif">el banco cobra ${peso(dif)} más que lo cargado en la app</span>` : `<span class="rs-dif">en la app tenés ${peso(-dif)} más que el banco</span>`);
     return `<div class="rs-fila"><span>${etqMes(k)}</span><span>${peso(c.monto)}</span><span>${peso(app)}</span>${est}</div>`;
   }).join('');
   const pagoAnt = rs.saldoAnt > 0 ? (rs.pagoAnt >= rs.saldoAnt - 1 ? '✓ Pagaste completo el resumen anterior' : `Del resumen anterior pagaste ${peso(rs.pagoAnt || 0)} de ${peso(rs.saldoAnt)}`) : '';
@@ -75,7 +78,7 @@ function bloqueResumen(nom) {
     <small class="rs-f">${[rs.cierre ? 'Cierre ' + fechaCorta(rs.cierre) : '', rs.proxCierre ? 'próximo cierre ' + fechaCorta(rs.proxCierre) : '', rs.proxVence ? 'próximo vencimiento ' + fechaCorta(rs.proxVence) : ''].filter(Boolean).join(' · ')}</small>
     ${pagoAnt ? `<small class="rs-f">${pagoAnt}</small>` : ''}
     ${botonCargarCuotas(nom, rs)}
-    ${filas ? `<div class="rs-tabla"><div class="rs-fila rs-th"><span>Cuotas a vencer</span><span>Resumen</span><span>App</span><span></span></div>${filas}</div><small class="rs-f">Una diferencia suele ser una compra en cuotas anterior a la app, o una compra que no cargaste.</small>` : ''}
+    ${filas ? `<div class="rs-tabla"><div class="rs-fila rs-th"><span>Cuotas a vencer</span><span>Resumen</span><span>App</span><span></span></div>${filas}</div><small class="rs-f">Cada mes es el de pago (cuando vence el resumen). Se comparan solo las compras hechas hasta el cierre${rs.cierre ? ' del ' + fechaCorta(rs.cierre) : ''}, porque el banco todavía no conoce las posteriores. Si el banco cobra más: falta cargar una compra en cuotas (por ejemplo una anterior a la app). Si la app tiene más: puede ser una compra mal cargada, con otra tarjeta o en otras cuotas.</small>` : ''}
     <div class="rs-acc"><button class="ghost" data-rs-imp="${q}">${vencido ? 'Importar el resumen nuevo' : 'Actualizar resumen'}</button><button class="ghost del" data-rs-del="${q}">Quitar</button></div>
   </div>`;
 }

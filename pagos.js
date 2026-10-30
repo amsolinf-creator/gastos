@@ -177,6 +177,14 @@ function tonoTarjeta(nom) {
 }
 
 // ---------- Pantalla de Cuotas ----------
+// tarjetas contraídas (se muestran solo los totales); se recuerda entre sesiones
+const LS_TJ_CERRADAS = 'gastos.tjCerradas.v1';
+const tjCerradas = new Set(cargar(LS_TJ_CERRADAS, []));
+function alternarTarjeta(nom) {
+  if (tjCerradas.has(nom)) tjCerradas.delete(nom); else tjCerradas.add(nom);
+  try { localStorage.setItem(LS_TJ_CERRADAS, JSON.stringify([...tjCerradas])); } catch {}
+  renderCuotas();
+}
 function renderCuotas() {
   try { renderCuotasInterno(); }
   catch (e) { $('cuotasCont').innerHTML = `<div class="vacio">No pude armar la pantalla de cuotas.<br><small>${esc(e && e.message || e)}</small></div>`; }
@@ -209,8 +217,10 @@ function renderCuotasInterno() {
         ${p.nota ? `<small class="plan-f plan-nota">📝 ${esc(p.nota)}</small>` : ''}
         <small class="plan-f">${p.faltan > 0 ? `Última cuota: ${etqMes(p.fin)}` : `Terminó en ${etqMes(p.fin)}`}</small></div>`;
     };
-    h += `<div class="tj" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab"><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
+    const cerrada = tjCerradas.has(nom);
+    h += `<div class="tj${cerrada ? ' cerrada' : ''}" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab" data-tj-toggle="${esc(nom)}" role="button" tabindex="0" aria-expanded="${!cerrada}"><span class="tj-flecha" aria-hidden="true">▾</span><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
       <div class="tj-res"><div><small>Este mes</small><b>${peso(mes)}</b></div><div><small>Mes próximo</small><b>${peso(prox)}</b></div><div><small>Saldo</small><b>${peso(sal)}</b></div></div>
+      <div class="tj-cuerpo">
       ${t && typeof bloqueResumen === 'function' ? bloqueResumen(nom) : ''}
       ${t ? `<label class="tj-conf">Primera cuota de cada compra
         <select data-tj-desde="${esc(nom)}"><option value="0"${t.desde === 0 ? ' selected' : ''}>cae el mes de la compra</option><option value="1"${t.desde === 1 ? ' selected' : ''}>cae el mes siguiente</option></select></label>
@@ -218,6 +228,7 @@ function renderCuotasInterno() {
         <input type="date" data-tj-cierre="${esc(nom)}" value="${fechaCierre(t.cierre)}"></label>` : ''}
       ${activos.length ? activos.map(fila).join('') : '<p class="hint" style="margin:10px 0 0">No hay compras en cuotas pendientes.</p>'}
       ${cerrados.length ? `<details class="tj-ter"><summary>Terminadas (${cerrados.length})</summary>${cerrados.map(fila).join('')}</details>` : ''}
+      </div>
     </div>`;
   }
   // aviso si hay gastos pagados con tarjeta que no se pueden contar (falta elegir cuál)
@@ -229,6 +240,8 @@ function renderCuotasInterno() {
 }
 
 $('cuotasCont').addEventListener('click', async e => {
+  const tg = e.target.closest('[data-tj-toggle]');
+  if (tg && !e.target.closest('.tj-x')) { alternarTarjeta(tg.dataset.tjToggle); return; }
   if (e.target.closest('#tjAdmin')) { document.querySelector('nav button[data-t=ajustes]').click(); $('misTarjetas').scrollIntoView({ block: 'start' }); return; }
   if (e.target.closest('#tjNueva')) { if (await agregarTarjeta()) { renderCuotas(); pintarTodosLosPagos(); } return; }
   const q = e.target.closest('[data-tj-quitar]');
@@ -239,6 +252,10 @@ $('cuotasCont').addEventListener('click', async e => {
     if (pagoUlt.tarjeta === nom) { pagoUlt.tarjeta = ''; guardarPagoUlt(); }
     renderCuotas(); pintarTodosLosPagos();
   }
+});
+$('cuotasCont').addEventListener('keydown', e => {
+  const tg = e.target.closest && e.target.closest('[data-tj-toggle]');
+  if (tg && e.target === tg && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); alternarTarjeta(tg.dataset.tjToggle); }
 });
 $('cuotasCont').addEventListener('change', e => {
   const nom = e.target.dataset.tjDesde; if (!nom) return;

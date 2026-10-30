@@ -176,6 +176,13 @@ function tonoTarjeta(nom) {
   return h;
 }
 
+// próximo cierre y vencimiento según el último resumen leído: queda a la vista aunque la tarjeta esté contraída
+function proximoCierreTxt(nom) {
+  const rs = resumenes[nom]; if (!rs || !rs.proxCierre) return '';
+  const f = iso => { const [y, m, d] = iso.split('-'); return `${+d}/${+m}/${y}`; };
+  return `<div class="tj-prox">📅 Próximo cierre: <b>${f(rs.proxCierre)}</b>${rs.proxVence ? ` · vence el <b>${f(rs.proxVence)}</b>` : ''}</div>`;
+}
+
 // ---------- Pantalla de Cuotas ----------
 // tarjetas contraídas (se muestran solo los totales); se recuerda entre sesiones
 const LS_TJ_CERRADAS = 'gastos.tjCerradas.v1';
@@ -220,6 +227,7 @@ function renderCuotasInterno() {
     const cerrada = tjCerradas.has(nom);
     h += `<div class="tj${cerrada ? ' cerrada' : ''}" style="--h:${tonoTarjeta(nom)}"><div class="tj-cab" data-tj-toggle="${esc(nom)}" role="button" tabindex="0" aria-expanded="${!cerrada}"><span class="tj-flecha" aria-hidden="true">▾</span><b><svg class="ic ic-s"><use href="#i-card"/></svg> ${esc(nom)}</b>${t ? `<button class="tj-x" data-tj-quitar="${esc(nom)}" aria-label="Quitar tarjeta">${ICX}</button>` : ''}</div>
       <div class="tj-res"><div><small>Este mes</small><b>${peso(mes)}</b></div><div><small>Mes próximo</small><b>${peso(prox)}</b></div><div><small>Saldo</small><b>${peso(sal)}</b></div></div>
+      ${proximoCierreTxt(nom)}
       <div class="tj-cuerpo">
       ${t && typeof bloqueResumen === 'function' ? bloqueResumen(nom) : ''}
       ${t ? `<label class="tj-conf">Primera cuota de cada compra

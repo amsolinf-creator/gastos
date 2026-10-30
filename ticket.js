@@ -106,8 +106,8 @@ Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
 }
 
 // Pedido a Gemini con una o más imágenes; si el modelo está saturado o sin cuota se prueba el de respaldo
-async function llamarGeminiImagenes(prompt, schema, imagenes, topeMs) {
-  const modelos = [...new Set([ajustes.modelo || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
+async function llamarGeminiImagenes(prompt, schema, imagenes, topeMs, primeros = []) {
+  const modelos = [...new Set([...primeros, ajustes.modelo || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
   let ultimo = '';
   for (const m of modelos) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {

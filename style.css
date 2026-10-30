@@ -472,3 +472,5 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .tj-flecha { display: inline-block; width: 20px; text-align: center; color: hsl(var(--h) 80% 72%); transition: transform .15s; }
 .tj.cerrada .tj-flecha { transform: rotate(-90deg); }
 .tj.cerrada .tj-cuerpo { display: none; }
+
+.tj-prox { margin: 6px 0 4px; padding: 6px 10px; border-radius: 10px; background: hsl(var(--h) 45% 30% / .45); font-size: 13px; }

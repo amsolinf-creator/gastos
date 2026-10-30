@@ -30,7 +30,7 @@ const AYUDA = [
     'Si no reconoce el lugar, aparece «¿Dónde lo compraste?»: dictalo, escribilo o elegí uno de los atajos.' ] },
   { t: 'Tarjeta de crédito y cuotas', p: [
     'Al registrar un gasto elegí «Medio de pago» → «Tarjeta de crédito», la tarjeta (➕ Agregar tarjeta… la primera vez) y la cantidad de cuotas.',
-    'En la pestaña Cuotas ves cuánto pagás este mes, el saldo y los próximos meses de cada tarjeta.',
+    'En la pestaña Cuotas ves cuánto pagás este mes, el saldo y los próximos meses de cada tarjeta. Tocá el nombre de una tarjeta para contraerla y que ocupe menos lugar (quedan a la vista los totales).',
     'Si tu tarjeta cobra la primera cuota el mes siguiente, cambialo en Ajustes → Mis tarjetas.',
     'Para controlar el banco: en Cuotas, dentro de cada tarjeta, tocá «Importar resumen del banco» y elegí el PDF o una foto. La app guarda solo fechas y montos: vencimiento, total, pago mínimo y las cuotas por vencer, y las compara con las tuyas. Con «Cargar las cuotas del resumen» se agregan solas las compras en cuotas que todavía no tenías.',
     'Elegí también la fecha de cierre del resumen (se usa solo el día, por ejemplo el 24): las compras hechas después de esa fecha pasan a la cuota del mes siguiente.' ] },

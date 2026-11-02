@@ -35,6 +35,7 @@ const AYUDA = [
     'Para controlar el banco: en Cuotas, dentro de cada tarjeta, tocá «Importar resumen del banco» y elegí el PDF o una foto. La app guarda solo fechas y montos: vencimiento, total, pago mínimo y las cuotas por vencer, y las compara con las tuyas. Con «Cargar las cuotas del resumen» se agregan solas las compras en cuotas que todavía no tenías.',
     'Elegí también la fecha de cierre del resumen (se usa solo el día, por ejemplo el 24): las compras hechas después de esa fecha pasan a la cuota del mes siguiente.' ] },
   { t: 'Historial: corregir y borrar', p: [
+    'El Historial agrupa los gastos por mes: el mes actual está abierto y los anteriores aparecen contraídos con su total (por ejemplo «Octubre 2026 · $350.000»). Tocá un mes para abrirlo o cerrarlo.',
     'Tocá una compra para ver el detalle y corregir la categoría, el lugar o la fecha.',
     'Dentro de una compra abierta podés elegir el lugar (es el título de la compra), o agregar uno nuevo con «➕ Agregar lugar…».',
     'Cada compra y cada gasto tiene un campo «Observaciones» para anotar lo que quieras, por ejemplo «Reintegro del 20% en el próximo resumen». La nota se ve en el Historial, en Cuotas y en el Excel.',

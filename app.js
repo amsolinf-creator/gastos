@@ -604,12 +604,16 @@ function tarjetaCompra(items) {
   </details>`;
 }
 
+// meses del Historial abiertos o cerrados a mano (el mes actual arranca abierto y los anteriores cerrados)
+const mesesHist = new Map();
 function renderHistorial() {
   const orden = [...gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));   // estable: dentro del día se conserva el orden de carga
   if (!orden.length) { $('lista').innerHTML = '<div class="vacio"><svg class="ic"><use href="#i-bag"/></svg>Todavía no hay gastos.</div>'; return; }
-  const porDia = {};
-  orden.forEach(g => (porDia[g.fecha] = porDia[g.fecha] || []).push(g));
-  $('lista').innerHTML = Object.entries(porDia).map(([f, gs]) => {
+  // los gastos se agrupan por mes: el actual se muestra abierto y los anteriores contraídos (con su total)
+  const porMes = {};
+  orden.forEach(g => { const m = g.fecha.slice(0, 7); ((porMes[m] = porMes[m] || {})[g.fecha] = porMes[m][g.fecha] || []).push(g); });
+  const mesHoy = hoyISO().slice(0, 7);
+  const htmlDia = (f, gs) => {
     // dentro de cada día, los gastos de una misma compra se juntan en una sola tarjeta
     const compras = new Map(), bloques = [];
     for (const g of gs) {
@@ -619,8 +623,16 @@ function renderHistorial() {
     }
     return `<div class="dia"><span>${modoSel ? chkSel('d:' + f, gs.every(estaSel)) : ''}${parseFecha(f).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${peso(gs.reduce((t, g) => t + g.monto, 0))}</span></div>
       ${bloques.map(b => (b.items ? tarjetaCompra(b.items) : filaGasto(b.g))).join('')}`;
+  };
+  $('lista').innerHTML = Object.entries(porMes).map(([m, dias]) => {
+    const todos = Object.values(dias).flat(), total = todos.reduce((t, g) => t + g.monto, 0);
+    const [anio, mes] = m.split('-'), nombre = MESES[+mes - 1].charAt(0).toUpperCase() + MESES[+mes - 1].slice(1);
+    const abierto = modoSel || (mesesHist.has(m) ? mesesHist.get(m) : m === mesHoy);
+    return `<details class="mes-g" data-mes="${m}"${abierto ? ' open' : ''}><summary>${modoSel ? chkSel('m:' + m, todos.every(estaSel)) : ''}<span class="mes-t"><b>${nombre} ${anio}</b><small>${todos.length} gasto(s)</small></span><b class="mes-m">${peso(total)}</b></summary>
+      ${Object.entries(dias).map(([f, gs]) => htmlDia(f, gs)).join('')}</details>`;
   }).join('');
 }
+$('lista').addEventListener('toggle', e => { const m = e.target.dataset && e.target.dataset.mes; if (m && !modoSel) mesesHist.set(m, e.target.open); }, true);
 // ---- selección múltiple para borrar ----
 function actualizarBarraSel() {
   $('barraSel').hidden = !modoSel;
@@ -650,7 +662,7 @@ $('lista').addEventListener('click', e => {
   if (tipo === 'g') alternar(selG, clave);
   else if (tipo === 'c') alternar(selC, clave);
   else {
-    const dia = gastos.filter(g => g.fecha === clave), todo = dia.every(estaSel);
+    const dia = gastos.filter(g => (tipo === 'm' ? g.fecha.slice(0, 7) === clave : g.fecha === clave)), todo = dia.every(estaSel);
     dia.forEach(g => { const set = g.compraId ? selC : selG, v = g.compraId || g.id; if (todo) set.delete(v); else set.add(v); });
   }
   actualizarBarraSel(); renderHistorial();

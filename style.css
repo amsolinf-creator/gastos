@@ -475,3 +475,13 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 
 .tj-prox { margin: 6px 0 4px; padding: 6px 10px; border-radius: 10px; background: hsl(var(--h) 45% 30% / .45); font-size: 13px; }
 .tj-prox small { display: block; margin-top: 3px; color: var(--mute); font-size: 12px; } .tj-prox small b { color: inherit; }
+
+/* Historial: meses que se contraen */
+.mes-g { margin-top: 14px; border-radius: var(--r); background: rgba(255,255,255,.03); border: 1px solid var(--line); padding: 0 10px 6px; }
+.mes-g > summary { padding: 14px 4px; gap: 10px; }
+.mes-g > summary::after { margin: 0 2px 3px 4px; flex: none; }
+.mes-t { flex: 1; display: flex; flex-direction: column; } .mes-t b { font-size: 17px; } .mes-t small { color: var(--mute); font-weight: 400; font-size: 12.5px; }
+.mes-m { font-size: 16px; }
+.mes-g[open] > summary { border-bottom: 1px solid var(--line); }
+.mes-g > .dia:first-of-type { margin-top: 12px; }
+.mes-g > summary .sel-chk { width: 24px; height: 24px; margin-right: 0; flex: none; }

@@ -84,8 +84,9 @@ let lugarActual = cargar(LS_LUGAR, '');
 const LS_LUGCAT = 'gastos.lugarCat.v1';
 let lugarCat = cargar(LS_LUGCAT, {});   // { "avalle repuestos": "Auto" }: la categoría que usaste con cada lugar
 
+const alfa = (a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' });   // orden alfabético, sin distinguir mayúsculas ni tildes
 const opcionesLugar = (sel, conNuevo = false) => {
-  const lista = sel && !lugares.includes(sel) ? [...lugares, sel] : lugares;
+  const lista = [...(sel && !lugares.includes(sel) ? [...lugares, sel] : lugares)].sort(alfa);
   return '<option value="">Sin especificar</option>' + lista.map(l => `<option${l === sel ? ' selected' : ''}>${esc(l)}</option>`).join('') + (conNuevo ? '<option value="__nuevo__">➕ Agregar lugar…</option>' : '');
 };
 // pide un lugar nuevo y lo suma a la lista (o devuelve el que ya existía); '' si se cancela

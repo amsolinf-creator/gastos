@@ -485,3 +485,8 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .mes-g[open] > summary { border-bottom: 1px solid var(--line); }
 .mes-g > .dia:first-of-type { margin-top: 12px; }
 .mes-g > summary .sel-chk { width: 24px; height: 24px; margin-right: 0; flex: none; }
+
+/* Vista previa de PDF del ticket */
+.pdf-vista { background: #000; border-radius: 12px; padding: 8px; margin: 10px 0; max-height: 62vh; overflow: auto; }
+.pdf-pag { display: block; width: 100%; height: auto; background: #fff; border-radius: 6px; margin-bottom: 8px; }
+.pdf-pag:last-child { margin-bottom: 0; }

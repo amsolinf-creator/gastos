@@ -19,7 +19,7 @@ const AYUDA = [
     'La app te muestra la diferencia con tu estimado.',
     'Elegí cómo pagaste y tocá «Guardar compra»: se guarda el total real, repartido entre los productos.' ] },
   { t: 'Registrar escaneando el ticket', p: [
-    'En Gasto tocá «Escanear un ticket». Sacá una foto, elegí una captura de la galería o subí el ticket en PDF (por ejemplo el que descargás de la app del supermercado).',
+    'En Gasto tocá «Escanear un ticket». Sacá una foto, elegí una captura de la galería o subí el ticket en PDF (por ejemplo el que descargás de la app del supermercado). Con el PDF primero ves una vista previa y recién ahí tocás «Leer este ticket».',
     'Encuadrá solo el ticket (arrastrá las esquinas, usá «Girar»). Si es largo, elegí varias capturas seguidas.',
     'Revisá los productos y montos. Si el total del ticket no coincide por una promoción, elegí «Registrarla como descuento».',
     'Confirmá la fecha, el medio de pago y guardá. La foto se envía a Google para leerla y no se guarda en la app.',

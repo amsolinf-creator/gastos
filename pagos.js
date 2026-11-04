@@ -26,7 +26,7 @@ function pintarPago(c, cuotas) {
   if (!c) return;
   const inp = c.querySelector('[data-p=cuotas]');
   const cuo = cuotas !== undefined ? cuotas : (inp ? inp.value : '1');
-  const opT = tarjetas.map(t => `<option${t.nombre === pagoUlt.tarjeta ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('');
+  const opT = [...tarjetas].sort((a, b) => alfa(a.nombre, b.nombre)).map(t => `<option${t.nombre === pagoUlt.tarjeta ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('');
   c.innerHTML = `<label><span class="lab"><svg class="ic ic-s"><use href="#i-card"/></svg> Medio de pago</span>
       <select data-p="medio"><option value="">Sin especificar</option>${MEDIOS.map(m => `<option${m === pagoUlt.medio ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
     <div class="pago-cred"${pagoUlt.medio === CREDITO ? '' : ' hidden'}>

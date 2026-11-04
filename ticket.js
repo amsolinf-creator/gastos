@@ -368,7 +368,7 @@ function leerCampo(el, confirmar) {
 
 function pintarFilas() {
   const usados = new Set(cn.lineas.filter(l => l.destino !== 'nuevo' && l.destino !== 'ignorar').map(l => l.destino));
-  const opciones = sel => cn.items.map(g => `<option value="${g.id}"${sel === g.id ? ' selected' : ''}>${esc(g.producto)}</option>`).join('')
+  const opciones = sel => [...cn.items].sort((a, b) => alfa(a.producto, b.producto)).map(g => `<option value="${g.id}"${sel === g.id ? ' selected' : ''}>${esc(g.producto)}</option>`).join('')
     + `<option value="nuevo"${sel === 'nuevo' ? ' selected' : ''}>${cn.nuevo ? 'Registrar este producto' : 'Producto nuevo (no estaba en mi carrito)'}</option><option value="ignorar"${sel === 'ignorar' ? ' selected' : ''}>Ignorar este renglón</option>`;
   const filas = cn.lineas.map((l, i) => {
     const g = cn.items.find(x => x.id === l.destino), est = g ? g.estimado || g.monto : 0, dif = g ? numCn(l.monto) - est : 0;

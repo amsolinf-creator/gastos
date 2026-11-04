@@ -84,8 +84,10 @@ function usarRecorte() {
 // ---------- Lectura del ticket con Gemini (acepta imágenes) ----------
 async function leerTicket(imagenes, nombresCarrito) {
   const varias = imagenes.length > 1;
+  const hayPdf = imagenes.some(im => im.mime === 'application/pdf');
   const prompt = `Leé este ticket de compra de un comercio argentino y devolvé los datos en JSON.${varias ? `
-- Son ${imagenes.length} capturas CONSECUTIVAS del mismo ticket, en orden de arriba hacia abajo. Se pueden superponer: si un renglón aparece repetido al final de una captura y al principio de la siguiente, es el mismo renglón y debe contarse UNA sola vez. El total suele figurar en la última.` : ''}
+- Son ${imagenes.length} capturas CONSECUTIVAS del mismo ticket, en orden de arriba hacia abajo. Se pueden superponer: si un renglón aparece repetido al final de una captura y al principio de la siguiente, es el mismo renglón y debe contarse UNA sola vez. El total suele figurar en la última.` : ''}${hayPdf ? `
+- Es un PDF del ticket: si tiene varias páginas son partes consecutivas del MISMO ticket, de la primera a la última; el total suele figurar al final.` : ''}
 - "total": el importe total a pagar (número).
 - "lineas": solo los productos comprados. Cada línea: "descripcion" (como figura en el ticket, sin códigos de barra), "cantidad" (número; 1 si no figura), "unidad" ("kg", "g", "l" o "u"), "subtotal" (importe final de esa línea en pesos, con el descuento de esa línea si lo tuviera) y "producto_carrito": si la línea corresponde a alguno de estos productos del carrito, escribí EXACTAMENTE su nombre; si no corresponde a ninguno, dejalo vacío.
 Productos del carrito: ${nombresCarrito.join(', ') || '(ninguno)'}.
@@ -220,9 +222,9 @@ function montarConciliacion() {
     <div class="concil-cuerpo">
       <div id="cnPaso1">
         <p id="cnHint1" class="hint">Sacale una foto al ticket entero, derecho y bien iluminado. La IA lee los renglones y vos confirmás antes de guardar. <b>La foto no se guarda.</b></p>
-        <p id="cnHint2" class="hint">¿Ticket largo en la pantalla del celular? Sacá varias capturas seguidas (que cada una repita un poco el final de la anterior) y elegilas todas juntas desde la galería.</p>
+        <p id="cnHint2" class="hint">¿Ticket largo en la pantalla del celular? Sacá varias capturas seguidas (que cada una repita un poco el final de la anterior) y elegilas todas juntas desde la galería. ¿Tenés el ticket en <b>PDF</b>? Elegilo con el segundo botón: se lee tal cual, sin recortar.</p>
         <label class="cn-boton cn-prim"><svg class="ic"><use href="#i-camera"/></svg> Sacar foto<input id="cnFoto" type="file" accept="image/*" capture="environment" hidden></label>
-        <label class="cn-boton"><svg class="ic"><use href="#i-image"/></svg> Elegir de la galería (una o varias)<input id="cnGaleria" type="file" accept="image/*" multiple hidden></label>
+        <label class="cn-boton"><svg class="ic"><use href="#i-image"/></svg> Elegir de la galería o un PDF<input id="cnGaleria" type="file" accept="image/*,application/pdf,.pdf" multiple hidden></label>
         <button id="cnManual" class="ghost" style="width:100%;margin-top:10px">Cargar los montos a mano</button>
         <p id="cnEstado" class="hint cn-estado"></p>
       </div>
@@ -299,17 +301,20 @@ function abrirEscaneo() {
 }
 function cerrarConciliacion() { $('conciliar').hidden = true; document.body.style.overflow = ''; cn = null; }
 
+const archivoPdf = f => new Promise((ok, mal) => { const fr = new FileReader(); fr.onload = () => ok({ mime: 'application/pdf', base64: String(fr.result).split(',')[1] }); fr.onerror = () => mal(new Error('no pude abrir el PDF')); fr.readAsDataURL(f); });
 async function procesarFoto(archivos, input) {
   archivos = (Array.isArray(archivos) ? archivos : [archivos]).filter(Boolean);
   if (input) input.value = '';
   if (!archivos.length) return;
   if (!ajustes.apiKey) { $('cnEstado').textContent = 'Para leer la foto hace falta la clave de Gemini (Ajustes). Mientras tanto podés cargar los montos a mano.'; return; }
-  if (archivos.length === 1) { await abrirRecorte(archivos[0]); return; }
-  // varias capturas del mismo ticket: se envían juntas, en el orden en que se eligieron
-  if (archivos.length > 8) { $('cnEstado').textContent = 'Elegí hasta 8 capturas por vez.'; return; }
-  $('cnEstado').textContent = `Preparando ${archivos.length} capturas…`;
-  try { await enviarFoto(await Promise.all(archivos.map(f => prepararImagen(f, 1600)))); }
-  catch (e) { $('cnEstado').textContent = 'No se pudieron abrir las capturas: ' + e.message; }
+  const esPdf = f => /pdf/i.test(f.type) || /\.pdf$/i.test(f.name || '');
+  if (archivos.length === 1 && !esPdf(archivos[0])) { await abrirRecorte(archivos[0]); return; }
+  // varias capturas del mismo ticket, o un PDF: se envían juntos, en el orden en que se eligieron (el PDF no se recorta: ya viene limpio)
+  if (archivos.length > 8) { $('cnEstado').textContent = 'Elegí hasta 8 archivos por vez.'; return; }
+  if (archivos.some(f => esPdf(f) && f.size > 15 * 1024 * 1024)) { $('cnEstado').textContent = 'El PDF es muy grande (máximo 15 MB).'; return; }
+  $('cnEstado').textContent = archivos.some(esPdf) ? 'Preparando el PDF…' : `Preparando ${archivos.length} capturas…`;
+  try { await enviarFoto(await Promise.all(archivos.map(f => (esPdf(f) ? archivoPdf(f) : prepararImagen(f, 1600))))); }
+  catch (e) { $('cnEstado').textContent = 'No se pudo abrir el archivo: ' + e.message; }
 }
 
 async function enviarFoto(imgs) {

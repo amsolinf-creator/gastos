@@ -239,6 +239,12 @@ function montarConciliacion() {
         </div>
         <button id="rcUsar" class="primary" type="button" style="width:100%">Usar esta parte</button>
       </div>
+      <div id="cnPasoPdf" hidden>
+        <p id="cnPdfInfo" class="hint" style="margin-top:0"></p>
+        <div id="cnPdfVista" class="pdf-vista"></div>
+        <div class="rc-barra"><button id="pdfOtro" class="ghost" type="button">Elegir otro archivo</button></div>
+        <button id="pdfLeer" class="primary" type="button" style="width:100%">Leer este ticket</button>
+      </div>
       <div id="cnPasoEtq" hidden>
         <p id="cnEtqInfo" class="hint" style="margin-top:0"></p>
         <div id="cnEtqFilas"></div>
@@ -259,6 +265,8 @@ function montarConciliacion() {
   $('cnCerrar').addEventListener('click', cerrarConciliacion);
   $('cnFoto').addEventListener('change', e => procesarFoto([...e.target.files], e.target));
   $('cnGaleria').addEventListener('change', e => procesarFoto([...e.target.files], e.target));
+  $('pdfLeer').addEventListener('click', () => { const imgs = pdfPend; pdfPend = null; $('cnPasoPdf').hidden = true; $('cnPaso1').hidden = false; if (imgs) enviarFoto(imgs); });
+  $('pdfOtro').addEventListener('click', () => { pdfPend = null; $('cnPdfVista').innerHTML = ''; $('cnPasoPdf').hidden = true; $('cnPaso1').hidden = false; });
   $('rcGirar').addEventListener('click', girarRecorte);
   $('rcTodo').addEventListener('click', () => { rc.x = rc.y = 0; rc.w = rc.cv.width; rc.h = rc.cv.height; pintarRecorte(); });
   $('rcOtra').addEventListener('click', cerrarRecorte);
@@ -284,7 +292,7 @@ function abrirConciliacion(cid) {
   cn = { cid, items, lineas: [], quitar: {}, total: '', modoDif: 'ajuste', origen: '', fecha: items[0].fecha, lugar: items[0].lugar || '' };
   const est = items.reduce((t, g) => t + g.monto, 0);
   $('cnSub').textContent = `${cn.lugar || 'Compra'} · ${fmtFecha(cn.fecha)} · hoy figura ${peso(est)}`;
-  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPasoPdf').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
@@ -295,13 +303,46 @@ function abrirEscaneo() {
   restaurarTextosFoto(); $('cnTit').textContent = 'Registrar desde un ticket'; $('pagoTicket').hidden = false; $('notaTicketL').hidden = false; $('notaTicket').value = ''; pintarPago($('pagoTicket'), 1);
   $('cnSub').textContent = 'Los productos y el total salen de la foto';
   $('cnManual').hidden = true;
-  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPasoPdf').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden';
   $('conciliar').scrollTop = 0;
 }
 function cerrarConciliacion() { $('conciliar').hidden = true; document.body.style.overflow = ''; cn = null; }
 
 const archivoPdf = f => new Promise((ok, mal) => { const fr = new FileReader(); fr.onload = () => ok({ mime: 'application/pdf', base64: String(fr.result).split(',')[1] }); fr.onerror = () => mal(new Error('no pude abrir el PDF')); fr.readAsDataURL(f); });
+// ---------- Vista previa de PDF (se dibuja con pdf.js, que se descarga solo la primera vez que se usa) ----------
+let pdfPend = null;
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const cargarPdfJs = () => (window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : new Promise((ok, mal) => {
+  const sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js';
+  sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+  sc.onerror = () => mal(new Error('sin conexión')); document.head.appendChild(sc);
+  setTimeout(() => mal(new Error('tardó demasiado en cargar')), 20000);
+}));
+async function mostrarVistaPrevia(archivos, listos, esPdf) {
+  pdfPend = listos;
+  $('cnPaso1').hidden = true; $('cnPasoPdf').hidden = false;
+  const vista = $('cnPdfVista'), info = $('cnPdfInfo'); const MAX = 6;
+  vista.innerHTML = ''; info.textContent = 'Preparando la vista previa…';
+  try {
+    const lib = await cargarPdfJs(); let paginas = 0, cortado = false;
+    const ancho = Math.max(240, vista.clientWidth || 320), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    for (const [i, f] of archivos.entries()) {
+      if (!esPdf(f)) { const im = new Image(); im.src = URL.createObjectURL(f); im.className = 'pdf-pag'; vista.appendChild(im); paginas++; continue; }
+      const doc = await lib.getDocument({ data: Uint8Array.from(atob(listos[i].base64), c => c.charCodeAt(0)) }).promise;
+      for (let n = 1; n <= doc.numPages; n++) {
+        if (paginas >= MAX) { cortado = true; break; }
+        const pag = await doc.getPage(n), v0 = pag.getViewport({ scale: 1 }), v = pag.getViewport({ scale: ancho / v0.width * dpr });
+        const cv = document.createElement('canvas'); cv.width = Math.round(v.width); cv.height = Math.round(v.height); cv.className = 'pdf-pag';
+        vista.appendChild(cv); await pag.render({ canvasContext: cv.getContext('2d'), viewport: v, intent: 'print' }).promise; paginas++;   // 'print' dibuja sin esperar animation frames (anda aunque la app quede en segundo plano)
+      }
+    }
+    info.textContent = `Vista previa: ${paginas} página(s)${cortado ? ` (se muestran las primeras ${MAX}; se lee todo el archivo)` : ''}. Si es el ticket correcto, tocá «Leer este ticket».`;
+  } catch (e) {
+    vista.innerHTML = '';
+    info.textContent = 'No pude mostrar la vista previa (' + (e.message || 'archivo no compatible') + '). Igual lo podés leer.';
+  }
+}
 async function procesarFoto(archivos, input) {
   archivos = (Array.isArray(archivos) ? archivos : [archivos]).filter(Boolean);
   if (input) input.value = '';
@@ -313,8 +354,11 @@ async function procesarFoto(archivos, input) {
   if (archivos.length > 8) { $('cnEstado').textContent = 'Elegí hasta 8 archivos por vez.'; return; }
   if (archivos.some(f => esPdf(f) && f.size > 15 * 1024 * 1024)) { $('cnEstado').textContent = 'El PDF es muy grande (máximo 15 MB).'; return; }
   $('cnEstado').textContent = archivos.some(esPdf) ? 'Preparando el PDF…' : `Preparando ${archivos.length} capturas…`;
-  try { await enviarFoto(await Promise.all(archivos.map(f => (esPdf(f) ? archivoPdf(f) : prepararImagen(f, 1600))))); }
-  catch (e) { $('cnEstado').textContent = 'No se pudo abrir el archivo: ' + e.message; }
+  try {
+    const listos = await Promise.all(archivos.map(f => (esPdf(f) ? archivoPdf(f) : prepararImagen(f, 1600))));
+    if (archivos.some(esPdf)) { $('cnEstado').textContent = ''; await mostrarVistaPrevia(archivos, listos, esPdf); }   // se ve el archivo antes de leerlo
+    else await enviarFoto(listos);
+  } catch (e) { $('cnEstado').textContent = 'No se pudo abrir el archivo: ' + e.message; }
 }
 
 async function enviarFoto(imgs) {
@@ -498,7 +542,7 @@ function abrirEtiqueta() {
   $('cnHint1').innerHTML = 'Sacale una foto a la <b>etiqueta de precio</b> (la de la balanza o la de la góndola). La IA lee el producto, el peso y el precio, y vos confirmás antes de agregarlo al carrito. <b>La foto no se guarda.</b>';
   $('cnHint2').innerHTML = 'Podés elegir <b>varias fotos</b> desde la galería: se lee una etiqueta por foto.';
   $('cnManual').hidden = true;
-  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
+  $('cnPaso1').hidden = false; $('cnPasoRecorte').hidden = true; $('cnPasoPdf').hidden = true; $('cnPaso2').hidden = true; $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnEstado').textContent = '';
   $('conciliar').hidden = false; document.body.style.overflow = 'hidden'; $('conciliar').scrollTop = 0;
 }
 function volverAFoto() { $('cnPasoEtq').hidden = true; $('cnPie').hidden = true; $('cnPaso1').hidden = false; $('cnEstado').textContent = ''; }

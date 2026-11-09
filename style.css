@@ -490,3 +490,5 @@ details.ayuda-tema:not([open]) > summary::after { transform: rotate(45deg); marg
 .pdf-vista { background: #000; border-radius: 12px; padding: 8px; margin: 10px 0; max-height: 62vh; overflow: auto; }
 .pdf-pag { display: block; width: 100%; height: auto; background: #fff; border-radius: 6px; margin-bottom: 8px; }
 .pdf-pag:last-child { margin-bottom: 0; }
+
+#toast .toast-deshacer { margin-left: 8px; min-height: 0; padding: 4px 12px; border-radius: 999px; background: var(--acc, #38bdf8); color: #06122b; font-weight: 700; border: 0; font-size: 14px; }

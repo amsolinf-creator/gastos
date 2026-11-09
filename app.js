@@ -741,8 +741,9 @@ $('lista').addEventListener('click', e => {
     return;
   }
   const b = e.target.closest('[data-borrar]'); if (!b) return;
-  const id = b.dataset.borrar;
-  gastos = gastos.filter(g => g.id !== id); persistir(); renderHistorial(); toast('Gasto borrado');
+  const id = b.dataset.borrar, g = gastos.find(x => x.id === id); if (!g) return;
+  if (!confirm(`¿Borrar «${g.producto}» (${peso(g.monto)})?\nNo se puede deshacer.`)) return;   // la ✕ se toca fácil sin querer
+  gastos = gastos.filter(x => x.id !== id); persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas(); toast('Gasto borrado');
 });
 
 // ---------- Ajustes ----------

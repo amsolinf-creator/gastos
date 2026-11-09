@@ -139,6 +139,30 @@ function toast(msg) {
   clearTimeout(toast.id);
   toast.id = setTimeout(() => (t.hidden = true), 3000);
 }
+// Aviso con botón «Deshacer» (dura más, para poder arrepentirse de un borrado)
+function toastDeshacer(msg, deshacer) {
+  const t = $('toast');
+  t.textContent = msg + ' ';
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'toast-deshacer'; b.textContent = 'Deshacer';
+  b.onclick = () => { clearTimeout(toast.id); t.hidden = true; deshacer(); };
+  t.appendChild(b); t.hidden = false;
+  clearTimeout(toast.id);
+  toast.id = setTimeout(() => (t.hidden = true), 8000);
+}
+// Quita de la lista los gastos que cumplen la condición y devuelve lo quitado (con su posición) para poder restaurarlo
+function quitarGastos(cumple) {
+  const quitados = [];
+  gastos.forEach((g, i) => { if (cumple(g)) quitados.push({ g, i }); });
+  gastos = gastos.filter(g => !cumple(g));
+  return quitados;
+}
+function restaurarGastos(quitados) {
+  const ya = new Set(gastos.map(g => g.id));
+  quitados.filter(q => !ya.has(q.g.id)).forEach(q => gastos.splice(Math.min(q.i, gastos.length), 0, q.g));
+  persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas();
+  toast(`Se restauraron ${quitados.length} gasto(s)`);
+}
 
 // ---------- Navegación ----------
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
@@ -671,12 +695,12 @@ $('lista').addEventListener('click', e => {
 $('selBorrar').addEventListener('click', () => {
   const marcados = gastos.filter(estaSel); if (!marcados.length) return;
   const total = marcados.reduce((t, g) => t + g.monto, 0);
-  if (!confirm(`¿Borrar ${marcados.length} gasto(s) por ${peso(total)}?\nNo se puede deshacer.`)) return;
-  gastos = gastos.filter(g => !estaSel(g));
+  if (!confirm(`¿Borrar ${marcados.length} gasto(s) por ${peso(total)}?`)) return;
+  const quitados = quitarGastos(estaSel);
   selC.forEach(id => abiertos.delete(id));
   persistir(); salirSel();
   if (typeof renderCuotas === 'function') renderCuotas();
-  toast(`${marcados.length} gasto(s) borrado(s)`);
+  toastDeshacer(`${marcados.length} gasto(s) borrado(s).`, () => restaurarGastos(quitados));
 });
 // recuerda qué compras están abiertas (el evento "toggle" no se propaga: se escucha en captura)
 $('lista').addEventListener('toggle', e => {
@@ -737,13 +761,15 @@ $('lista').addEventListener('click', e => {
   if (bc) {
     const cid = bc.dataset.borrarCompra, n = gastos.filter(g => g.compraId === cid).length;
     if (!confirm(`¿Borrar esta compra completa (${n} producto(s))?`)) return;
-    gastos = gastos.filter(g => g.compraId !== cid); abiertos.delete(cid); persistir(); renderHistorial(); toast('Compra borrada');
+    const quitados = quitarGastos(g => g.compraId === cid); abiertos.delete(cid); persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas();
+    toastDeshacer('Compra borrada.', () => restaurarGastos(quitados));
     return;
   }
   const b = e.target.closest('[data-borrar]'); if (!b) return;
   const id = b.dataset.borrar, g = gastos.find(x => x.id === id); if (!g) return;
-  if (!confirm(`¿Borrar «${g.producto}» (${peso(g.monto)})?\nNo se puede deshacer.`)) return;   // la ✕ se toca fácil sin querer
-  gastos = gastos.filter(x => x.id !== id); persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas(); toast('Gasto borrado');
+  if (!confirm(`¿Borrar «${g.producto}» (${peso(g.monto)})?`)) return;   // la ✕ se toca fácil sin querer
+  const quitados = quitarGastos(x => x.id === id); persistir(); renderHistorial(); if (typeof renderCuotas === 'function') renderCuotas();
+  toastDeshacer('Gasto borrado.', () => restaurarGastos(quitados));
 });
 
 // ---------- Ajustes ----------
